@@ -1,0 +1,46 @@
+[package]
+name = "spielstand-agent"
+description = "Spielstand agent: finds, backs up and restores game saves on one PC"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "spielstand-agent"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+spielstand-protocol.workspace = true
+spielstand-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+sqlx.workspace = true
+clap.workspace = true
+tempfile.workspace = true
+ludusavi = { version = "=0.31.0", default-features = false }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures = "0.3"
+rayon = "1"
+sysinfo = "0.36"
+notify-rust = { version = "4", default-features = false, features = ["z"] }
+toml = "0.8"
+dirs = "5"
+async-trait = "0.1"
+bytes = "1"
+
+[dev-dependencies]
+spielstand-server = { path = "../server" }
+axum = "0.8"
+serde_yaml = "0.8"
+proptest = "1"

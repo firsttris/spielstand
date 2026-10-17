@@ -1,0 +1,16 @@
+# Spielstand server. Start with `docker compose up -d`, then open http://<host>:8467.
+services:
+  spielstand:
+    image: tristanteu/spielstand:latest
+    container_name: spielstand
+    restart: unless-stopped
+    ports:
+      - "8467:8467"
+    volumes:
+      - ./data:/data
+    environment:
+      # The address your PCs reach the server under; used in the install command.
+      SPIELSTAND_PUBLIC_URL: http://homeserver:8467
+      # Offsite copy of every version. Set up the remote once with:
+      #   docker compose run --rm --entrypoint rclone spielstand config
+      SPIELSTAND_MIRROR: gdrive:Spielstand

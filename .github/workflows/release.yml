@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  tested:
+    uses: firsttris/workflows/.github/workflows/tested-on-main.yml@v1
+    permissions:
+      actions: read
+      contents: read
+
+  checks:
+    needs: tested
+    if: needs.tested.outputs.tested != 'true'
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+
+  # The agent for both architectures, attached to the GitHub release. The image carries the one
+  # of its own architecture; the server sends the other to the release download.
+  agent:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-22.04        # glibc 2.35: runs on every current distribution
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p spielstand-agent
+      - run: cp target/release/spielstand-agent "spielstand-agent-${{ matrix.arch }}-linux"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ matrix.arch }}
+          path: spielstand-agent-${{ matrix.arch }}-linux
+
+  agents:
+    needs: agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agent-*
+          merge-multiple: true
+          path: agents
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agents
+          path: agents/*
+
+  docker:
+    needs: [tested, checks, agents]
+    # The checks either passed or were not needed
+    if: ${{ !cancelled() && needs.tested.result == 'success' && needs.checks.result != 'failure' && needs.agents.result == 'success' }}
+    uses: firsttris/workflows/.github/workflows/docker-release.yml@v1
+    with:
+      image: tristanteu/spielstand
+      description: Self-hosted game save sync for Linux PCs and the Steam Deck, with versions and a web UI
+      ghcr: true
+      version-file: Cargo.toml
+      release-artifact: agents
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write

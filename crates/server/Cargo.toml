@@ -1,0 +1,50 @@
+[package]
+name = "spielstand-server"
+description = "Spielstand server: versions, heads, devices and the web UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "spielstand-server"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+spielstand-protocol.workspace = true
+spielstand-core.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+sqlx.workspace = true
+clap.workspace = true
+tempfile.workspace = true
+axum = { version = "0.8", features = ["ws", "macros"] }
+axum-extra = { version = "0.10", features = ["cookie"] }
+tower-http = { version = "0.6", features = ["trace", "limit"] }
+futures = "0.3"
+tokio-util = { version = "0.7", features = ["io"] }
+argon2 = "0.5"
+rand = "0.8"
+# debug-embed: a debug build carries the UI too, so the demo binary can run elsewhere (CI)
+rust-embed = { version = "8", features = ["interpolate-folder-path", "debug-embed"] }
+mime_guess = "2"
+ludusavi = { version = "=0.31.0", default-features = false }
+zip = { version = "0.6", default-features = false, features = ["deflate", "bzip2", "zstd"] }
+async-trait = "0.1"
+time = "0.3"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio-tungstenite = "0.26"
+serde_yaml = "0.8"

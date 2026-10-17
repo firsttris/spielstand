@@ -1,0 +1,21 @@
+# Podman Quadlet: copy to ~/.config/containers/systemd/ (rootless) or /etc/containers/systemd/,
+# then `systemctl --user daemon-reload && systemctl --user start spielstand`.
+[Unit]
+Description=Spielstand: game save sync server
+
+[Container]
+Image=docker.io/tristanteu/spielstand:latest
+ContainerName=spielstand
+PublishPort=8467:8467
+Volume=spielstand-data:/data:Z
+Environment=SPIELSTAND_PUBLIC_URL=http://homeserver:8467
+Environment=SPIELSTAND_MIRROR=gdrive:Spielstand
+AutoUpdate=registry
+HealthCmd=spielstand-server health
+HealthInterval=30s
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

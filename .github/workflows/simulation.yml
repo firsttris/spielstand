@@ -1,0 +1,27 @@
+name: Long simulation
+
+# The property-based sync simulation with many more cases than in CI: random PCs, sessions,
+# outages and restores, checked against the rule that no save is ever lost.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: Number of simulated histories
+        default: "3000"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release --locked -p spielstand-agent --test simulation
+        env:
+          SPIELSTAND_SIM_CASES: ${{ inputs.cases || '3000' }}

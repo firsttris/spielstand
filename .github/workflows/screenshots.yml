@@ -1,0 +1,73 @@
+name: Update screenshots
+
+# The project's own job instead of the reusable screenshots workflow: the demo server is Rust,
+# built here on the runner and handed to the Playwright container, which has no Rust.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: web
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p spielstand-server --example demo --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo
+          path: target/debug/examples/demo
+          retention-days: 1
+
+  image:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.playwright.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: playwright
+        uses: firsttris/workflows/actions/playwright-image@v1
+        with:
+          lockfile: web/pnpm-lock.yaml
+
+  screenshots:
+    needs: [demo, image]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      options: --ipc=host
+    # Two runs at once would push on top of each other
+    concurrency:
+      group: screenshots-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: demo
+          path: demo
+      - run: chmod +x demo/demo
+      - run: npm install --global pnpm@10.28.0 && pnpm install --frozen-lockfile && pnpm screenshots
+        working-directory: web
+        env:
+          SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/demo/demo
+      - uses: firsttris/workflows/actions/commit-changes@v1
+        with:
+          paths: docs/screenshots
+          message: Update screenshots

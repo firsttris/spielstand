@@ -1,0 +1,12 @@
+/target
+node_modules/
+/web/dist
+/web/test-results
+/web/playwright-report
+/site
+*.db
+*.db-shm
+*.db-wal
+.env
+/web/src/paraglide
+/web/project.inlang/cache

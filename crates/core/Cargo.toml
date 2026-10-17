@@ -1,0 +1,21 @@
+[package]
+name = "spielstand-core"
+description = "Version model, decision rules, packing and retention for Spielstand"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+spielstand-protocol.workspace = true
+serde.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+tar = "0.4"
+zstd = "0.13"
+
+[dev-dependencies]
+tempfile.workspace = true
+proptest = "1"
