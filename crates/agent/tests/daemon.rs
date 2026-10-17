@@ -243,8 +243,14 @@ async fn playing_on_after_loading_a_version_in_backup_mode_is_no_conflict() {
         restore().await.unwrap().status().is_success()
     })
     .await;
-    eventually("v1 on the disk", || async {
+    // Done once the desktop reported v1 as its state, the load's last step.
+    eventually("the desktop holds v1", || async {
         desktop.read_save().as_deref() == Some("one")
+            && s.game(GAME).await["versions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["meta"]["id"] == one.as_str() && v["onDevices"][0] == "desktop")
     })
     .await;
     daemon.abort();
