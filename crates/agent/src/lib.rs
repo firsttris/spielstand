@@ -1,19 +1,26 @@
 //! The Spielstand agent: one per PC. Finds saves with Ludusavi, snapshots before every write,
-//! uploads to the server and loads newer states from other PCs.
+//! uploads to the server and, for games it synchronises, loads newer states from other PCs.
 
+pub mod agent;
 pub mod client;
 pub mod config;
 pub mod daemon;
 pub mod desktop;
 pub mod disk;
 pub mod engine;
+pub mod foreign;
+pub mod prefixes;
+pub mod report;
 pub mod running;
+pub mod settings;
 pub mod store;
 pub mod sync;
+pub mod watch;
 
 use std::sync::Arc;
 
-pub use sync::{Agent, Choice, Mode, Outcome, Silent, Ui};
+pub use agent::Agent;
+pub use sync::{Choice, Mode, Outcome, Silent, Ui};
 
 /// Builds an agent from its saved configuration.
 pub async fn open(
@@ -24,12 +31,13 @@ pub async fn open(
     let config = config::AgentConfig::load(&dirs)?;
     let store = store::Store::open(&dirs.db()).await?;
     let client = client::Client::new(&config.server, &config.token);
-    Ok(Agent {
+    Ok(Agent::new(
         dirs,
         config,
         store,
         client,
         scanner,
         ui,
-    })
+        settings::Sources::from_env(),
+    ))
 }

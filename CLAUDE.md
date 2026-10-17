@@ -38,7 +38,7 @@ Green before every push, then check CI:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e
+cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e && pnpm e2e:stack
 mkdocs build --strict    # when docs/ or mkdocs.yml changed
 ```
 
@@ -78,7 +78,13 @@ split it past ~400 lines, a function past ~80. A refactor changes no behaviour.
   server moves a head only by compare-and-swap; imported versions never become head on their own;
   decisions use ancestry (`parent`, the device's base), never clocks. A change that weakens one of
   these needs a test in the simulation that shows why it is still safe.
+- **Back up only never writes.** In that mode the agent records versions but never changes a disk on
+  its own; `core::plan` and the simulation check it.
 - The demo server (`cargo run -p spielstand-server --example demo`) has three devices, a conflict,
-  a running game and a device that is behind; password `spielstand-demo`.
+  a running game, a device that is behind, an overwritten save and a game in back-up-only mode;
+  password `spielstand-demo`.
+- The stack (`cargo run -p spielstand-server --example stack`, after `cargo build -p
+  spielstand-agent`) runs a real server and two real agents for `pnpm e2e:stack`; ports 8469/8470,
+  password `spielstand-stack`.
 - UI components are written in the shadcn/ui style in `web/src/components/ui` (Radix + cva); add new
   ones the same way.

@@ -1,0 +1,105 @@
+//! What the server decides for this device (modes, game folders, prefix choices), kept on disk
+//! so an agent that starts without the server still knows it, and where saves can be found.
+
+use std::path::{Path, PathBuf};
+
+use spielstand_protocol::{AgentSettings, SaveMode};
+
+use crate::{
+    config::Dirs,
+    engine::Scanner,
+    prefixes::{self, PrefixrGame},
+};
+
+/// Where this agent looks for other programs' data; `None` turns a source off (tests).
+#[derive(Clone, Debug, Default)]
+pub struct Sources {
+    pub prefixr_config: Option<PathBuf>,
+    pub stellwerk_dir: Option<PathBuf>,
+}
+
+impl Sources {
+    pub fn from_env() -> Self {
+        Self {
+            prefixr_config: prefixes::prefixr_config(),
+            stellwerk_dir: crate::foreign::stellwerk_dir(),
+        }
+    }
+
+    pub fn prefixr_games(&self) -> Option<Vec<PrefixrGame>> {
+        prefixes::prefixr_games(self.prefixr_config.as_deref()?)
+    }
+
+    pub fn stellwerk_installed(&self) -> bool {
+        self.stellwerk_dir
+            .as_deref()
+            .is_some_and(crate::foreign::stellwerk_installed)
+    }
+}
+
+fn file(dirs: &Dirs) -> PathBuf {
+    dirs.data.join("settings.json")
+}
+
+pub fn load(dirs: &Dirs) -> AgentSettings {
+    std::fs::read_to_string(file(dirs))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+pub fn save(dirs: &Dirs, settings: &AgentSettings) -> anyhow::Result<()> {
+    std::fs::create_dir_all(&dirs.data)?;
+    let tmp = file(dirs).with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_string_pretty(settings)?)?;
+    std::fs::rename(tmp, file(dirs))?;
+    Ok(())
+}
+
+pub fn mode_of(settings: &AgentSettings, game: &str) -> SaveMode {
+    settings
+        .game_modes
+        .get(game)
+        .copied()
+        .unwrap_or(settings.default_mode)
+}
+
+pub fn game_folders(settings: &AgentSettings, home: &Path) -> Vec<PathBuf> {
+    settings
+        .game_folders
+        .iter()
+        .map(|f| prefixes::expand_home(f, home))
+        .collect()
+}
+
+/// Every Wine prefix Prefixr knows, the ones chosen in the web UI and every prefix in the game
+/// folders.
+pub fn wine_prefixes(settings: &AgentSettings, sources: &Sources, home: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = sources
+        .prefixr_games()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|g| g.prefix)
+        .chain(
+            settings
+                .prefix_choices
+                .values()
+                .map(|p| prefixes::expand_home(p, home)),
+        )
+        .filter(|p| prefixes::is_wine_prefix(p))
+        .collect();
+    for folder in game_folders(settings, home) {
+        found.extend(prefixes::find_in(&folder, 3));
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
+/// Points the scanner at the prefixes and game folders of `settings`.
+pub fn configure(scanner: &dyn Scanner, settings: &AgentSettings, sources: &Sources, home: &Path) {
+    scanner.configure(
+        wine_prefixes(settings, sources, home),
+        game_folders(settings, home),
+    );
+}

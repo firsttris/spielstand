@@ -14,17 +14,19 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use spielstand_protocol::EventKind;
 use spielstand_protocol::{
-    AgentMessage, BaseReport, HeadsResponse, PairRequest, PairResponse, PresenceReport, PromoteOutcome,
-    PromoteRequest, ServerMessage, UploadOutcome, VersionMeta, paths,
+    AgentMessage, AgentSettings, BaseReport, DeviceReport, HeadsResponse, KnownRequest, KnownResponse,
+    OverwriteReport, PairRequest, PairResponse, PresenceReport, PromoteOutcome, PromoteRequest,
+    ServerMessage, UploadOutcome, VersionMeta, paths,
 };
 use tokio_util::io::ReaderStream;
 
 use crate::{
+    alerts,
     app::{AppState, MAX_PACKAGE},
     auth::{self, Agent},
     blobs, db,
     error::{ApiResult, AppError},
-    framing, presence,
+    framing, known, modes, presence, reports,
     versions::{self, NewVersion},
 };
 
@@ -38,11 +40,45 @@ pub fn router() -> Router<AppState> {
         .route("/api/agent/versions/{id}/promote", post(promote))
         .route(paths::BASES, post(base))
         .route(paths::PRESENCE, post(report_presence))
+        .route(paths::KNOWN, post(known_version))
+        .route(paths::OVERWRITES, post(overwritten))
+        .route(paths::SETTINGS, get(settings))
+        .route(paths::REPORT, post(report))
         .route(paths::WS, get(ws))
+}
+
+async fn known_version(
+    State(state): State<AppState>,
+    _agent: Agent,
+    Json(req): Json<KnownRequest>,
+) -> ApiResult<Json<KnownResponse>> {
+    Ok(Json(known::known(&state, &req).await?))
+}
+
+async fn overwritten(
+    State(state): State<AppState>,
+    agent: Agent,
+    Json(req): Json<OverwriteReport>,
+) -> ApiResult<()> {
+    alerts::record(&state, &agent.device_id, &req)
+        .await
+        .map_err(|e| AppError::BadRequest(format!("{e:#}")))
+}
+
+async fn settings(State(state): State<AppState>, agent: Agent) -> ApiResult<Json<AgentSettings>> {
+    Ok(Json(modes::agent_settings(&state, &agent.device_id).await?))
+}
+
+async fn report(State(state): State<AppState>, agent: Agent, Json(req): Json<DeviceReport>) -> ApiResult<()> {
+    Ok(reports::store(&state, &agent.device_id, &req).await?)
 }
 
 async fn pair(State(state): State<AppState>, Json(req): Json<PairRequest>) -> ApiResult<Json<PairResponse>> {
     let code = req.code.trim().to_uppercase();
+    let attempt = state
+        .pairings
+        .attempt(std::time::Instant::now())
+        .ok_or(AppError::TooManyAttempts)?;
     let used = sqlx::query(
         "UPDATE pair_codes SET used_at = ? WHERE code = ? AND used_at IS NULL AND expires_at > ?",
     )
@@ -54,6 +90,7 @@ async fn pair(State(state): State<AppState>, Json(req): Json<PairRequest>) -> Ap
     if used.rows_affected() != 1 {
         return Err(AppError::Unauthorized);
     }
+    attempt.succeeded();
     let device_id = uuid::Uuid::new_v4().to_string();
     let token = auth::random_token();
     let name = if req.name.trim().is_empty() {
@@ -163,6 +200,13 @@ async fn ws(State(state): State<AppState>, agent: Agent, upgrade: WebSocketUpgra
 async fn live(state: AppState, agent: Agent, socket: WebSocket) {
     let (conn, mut outgoing) = state.hub.connect(&agent.device_id);
     let (mut tx, mut rx) = socket.split();
+    if let Ok(settings) = modes::agent_settings(&state, &agent.device_id).await
+        && let Ok(text) = serde_json::to_string(&ServerMessage::Settings { settings })
+        && tx.send(Message::Text(text.into())).await.is_err()
+    {
+        state.hub.disconnect(&agent.device_id, conn);
+        return;
+    }
     loop {
         tokio::select! {
             Some(message) = outgoing.recv() => {

@@ -15,6 +15,8 @@ const eventText: Record<EventKind, () => string> = {
   paired: m.event_paired,
   removed: m.event_removed,
   imported: m.event_imported,
+  overwritten: m.event_overwritten,
+  modeChanged: m.event_mode_changed,
   other: m.event_other,
 };
 

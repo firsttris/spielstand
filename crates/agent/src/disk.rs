@@ -3,8 +3,15 @@
 //! The rule: before anything is written, the state on disk exists as a version. Writing is
 //! staged next to each target and checked, then swapped in; files the version doesn't have go
 //! to the agent's trash, never deleted. If any step fails, the snapshot taken before is put back.
+//!
+//! Saves inside a Wine prefix are stored relative to the prefix (`<prefix>/drive_c/…`) and by
+//! their real path: Proton and Prefixr link `drive_c/users/<name>` to `steamuser`, so the same
+//! file can be found twice; it counts once, under `steamuser`.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::{Path, PathBuf},
+};
 
 use chrono::Utc;
 use spielstand_core::{
@@ -16,6 +23,7 @@ use spielstand_protocol::{FileEntry, Trigger, VersionMeta};
 use crate::{
     config::Dirs,
     engine::Scanner,
+    prefixes,
     store::{Base, Store},
 };
 
@@ -24,17 +32,69 @@ pub struct DiskState {
     pub files: Vec<FileEntry>,
     /// `None` when the game has no saves on this disk.
     pub content_hash: Option<String>,
+    /// The Wine prefix the saves are in, if they are in one.
+    pub prefix: Option<PathBuf>,
+}
+
+/// The agent's own files next to a save while it writes: never part of a version.
+const STAGING: &str = ".spielstand-new";
+
+pub fn is_staging(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|n| n.to_string_lossy().ends_with(STAGING))
+}
+
+/// The save files of `game` now, without the agent's own staging files.
+fn save_files(scanner: &dyn Scanner, game: &str) -> Vec<PathBuf> {
+    let mut files = scanner.save_files(game);
+    files.retain(|f| !is_staging(f));
+    files
+}
+
+/// The real path of `path`; for a file that does not exist yet, its folder's real path.
+pub fn real_path(path: &Path) -> PathBuf {
+    if let Ok(real) = std::fs::canonicalize(path) {
+        return real;
+    }
+    match (path.parent(), path.file_name()) {
+        (Some(dir), Some(name)) => real_path(dir).join(name),
+        _ => path.to_path_buf(),
+    }
+}
+
+/// The prefix most save files lie in.
+fn main_prefix(files: &[PathBuf]) -> Option<PathBuf> {
+    let mut counts: BTreeMap<PathBuf, usize> = BTreeMap::new();
+    for prefix in files.iter().filter_map(|f| prefixes::prefix_of(f)) {
+        *counts.entry(prefix).or_default() += 1;
+    }
+    counts.into_iter().max_by_key(|(_, n)| *n).map(|(p, _)| p)
+}
+
+fn portable_of(path: &Path, prefix: Option<&Path>, anchors: &Anchors) -> String {
+    if let Some(prefix) = prefix
+        && let Some(p) = portable::to_portable_in_prefix(&real_path(path), &real_path(prefix))
+    {
+        return p;
+    }
+    portable::to_portable(path, anchors)
 }
 
 pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
     let anchors = scanner.anchors();
-    let sources: Vec<Source> = scanner
-        .save_files(game)
+    let found = save_files(scanner, game);
+    let prefix = main_prefix(&found);
+    let mut seen = BTreeSet::new();
+    let mut portables = BTreeSet::new();
+    let sources: Vec<Source> = found
         .into_iter()
+        .filter(|path| seen.insert(real_path(path)))
         .map(|path| Source {
-            portable: portable::to_portable(&path, &anchors),
+            portable: portable_of(&path, prefix.as_deref(), &anchors),
             path,
         })
+        // Two real profiles with the same save path: one place to put it back, so one file.
+        .filter(|s| portables.insert(s.portable.clone()))
         .collect();
     let files = pack::describe(&sources)?;
     let content_hash = (!files.is_empty()).then(|| pack::content_hash(&files));
@@ -42,6 +102,7 @@ pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
         sources,
         files,
         content_hash,
+        prefix,
     })
 }
 
@@ -68,6 +129,10 @@ pub async fn snapshot(
     let id = spielstand_core::new_version_id(now);
     tokio::fs::create_dir_all(dirs.outbox()).await?;
     let blob = dirs.outbox().join(format!("{id}.tar.zst"));
+    let prefix_hint = disk
+        .prefix
+        .as_deref()
+        .map(|p| portable::to_portable(p, &scanner.anchors()));
     let packed = {
         let blob = blob.clone();
         tokio::task::spawn_blocking(move || pack::pack(&disk.sources, &blob)).await??
@@ -84,6 +149,7 @@ pub async fn snapshot(
         blob_sha256: packed.blob_sha256,
         blob_size: packed.blob_size,
         files: packed.files,
+        prefix: prefix_hint,
     };
     store.enqueue(&meta, &blob).await?;
     store
@@ -108,17 +174,39 @@ fn staged_name(target: &Path) -> PathBuf {
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    target.with_file_name(format!(".{name}.spielstand-new"))
+    target.with_file_name(format!(".{name}{STAGING}"))
 }
 
-fn targets(meta: &VersionMeta, anchors: &Anchors) -> anyhow::Result<Vec<(String, PathBuf)>> {
+/// The user name plain Wine would give a new profile: the home folder's name.
+fn linux_user(home: &Path) -> String {
+    std::env::var("USER")
+        .ok()
+        .filter(|u| !u.is_empty())
+        .or_else(|| home.file_name().map(|n| n.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "steamuser".into())
+}
+
+/// Where each file of `meta` goes on this device; `prefix` is the game's prefix here.
+pub fn targets(
+    meta: &VersionMeta,
+    anchors: &Anchors,
+    prefix: Option<&Path>,
+) -> anyhow::Result<Vec<(String, PathBuf)>> {
+    let users = prefix.map(prefixes::wine_users).unwrap_or_default();
+    let fallback = linux_user(&anchors.home);
     meta.files
         .iter()
         .map(|f| {
-            let target = portable::from_portable(&f.path, anchors)
-                .ok_or_else(|| anyhow::anyhow!("no place for {} on this device", f.path))?;
+            let target = if portable::is_in_prefix(&f.path) {
+                let prefix =
+                    prefix.ok_or_else(|| anyhow::anyhow!("no Wine prefix for {} here", meta.game))?;
+                portable::resolve_in_prefix(&f.path, prefix, &users, &fallback)
+            } else {
+                portable::from_portable(&f.path, anchors)
+            }
+            .ok_or_else(|| anyhow::anyhow!("no place for {} on this device", f.path))?;
             anyhow::ensure!(
-                portable::is_allowed_target(&target, anchors),
+                portable::is_allowed_target(&target, anchors, prefix),
                 "refusing to write {}",
                 target.display()
             );
@@ -128,10 +216,16 @@ fn targets(meta: &VersionMeta, anchors: &Anchors) -> anyhow::Result<Vec<(String,
 }
 
 /// Writes `meta` (its package at `blob`) to the disk. The caller has taken a snapshot first.
-pub fn write(dirs: &Dirs, scanner: &dyn Scanner, meta: &VersionMeta, blob: &Path) -> anyhow::Result<()> {
+pub fn write(
+    dirs: &Dirs,
+    scanner: &dyn Scanner,
+    meta: &VersionMeta,
+    blob: &Path,
+    prefix: Option<&Path>,
+) -> anyhow::Result<()> {
     let anchors = scanner.anchors();
     let contents = pack::unpack(blob, &meta.files)?;
-    let places = targets(meta, &anchors)?;
+    let places = targets(meta, &anchors, prefix)?;
 
     let mut planned = Vec::with_capacity(places.len());
     let staging = (|| -> anyhow::Result<()> {
@@ -162,22 +256,24 @@ pub fn write(dirs: &Dirs, scanner: &dyn Scanner, meta: &VersionMeta, blob: &Path
         return Err(e);
     }
 
-    let keep: std::collections::BTreeSet<PathBuf> = places.iter().map(|(_, t)| t.clone()).collect();
+    // Compared by real path: a file seen through a linked profile folder is the same file.
+    let keep: BTreeSet<PathBuf> = places.iter().map(|(_, t)| real_path(t)).collect();
     let trash = dirs.trash().join(format!(
         "{}-{}",
         Utc::now().format("%Y%m%dT%H%M%S"),
         spielstand_core::slug(&meta.game)
     ));
-    for extra in scanner
-        .save_files(&meta.game)
-        .into_iter()
-        .filter(|p| !keep.contains(p))
-    {
+    let mut moved = BTreeSet::new();
+    for extra in save_files(scanner, &meta.game) {
+        let real = real_path(&extra);
+        if keep.contains(&real) || !moved.insert(real.clone()) {
+            continue;
+        }
         std::fs::create_dir_all(&trash)?;
-        let name = extra.to_string_lossy().replace(['/', '\\'], "_");
-        if std::fs::rename(&extra, trash.join(&name)).is_err() {
-            std::fs::copy(&extra, trash.join(&name))?;
-            std::fs::remove_file(&extra)?;
+        let name = real.to_string_lossy().replace(['/', '\\'], "_");
+        if std::fs::rename(&real, trash.join(&name)).is_err() {
+            std::fs::copy(&real, trash.join(&name))?;
+            std::fs::remove_file(&real)?;
         }
     }
     for p in &planned {
@@ -198,13 +294,14 @@ pub fn write_or_roll_back(
     scanner: &dyn Scanner,
     meta: &VersionMeta,
     blob: &Path,
+    prefix: Option<&Path>,
     previous: Option<(&VersionMeta, &Path)>,
 ) -> anyhow::Result<()> {
-    match write(dirs, scanner, meta, blob) {
+    match write(dirs, scanner, meta, blob, prefix) {
         Ok(()) => Ok(()),
         Err(e) => {
             if let Some((prev, prev_blob)) = previous
-                && let Err(back) = write(dirs, scanner, prev, prev_blob)
+                && let Err(back) = write(dirs, scanner, prev, prev_blob, prefix)
             {
                 anyhow::bail!("{e:#}; putting the previous state back also failed: {back:#}");
             }

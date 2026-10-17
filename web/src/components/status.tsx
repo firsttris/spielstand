@@ -1,4 +1,4 @@
-import { CheckIcon, MonitorIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, HistoryIcon, MonitorIcon, TriangleAlertIcon } from "lucide-react";
 import type { GameSummary } from "@/bindings/GameSummary";
 import { Badge } from "@/components/ui/badge";
 import { m } from "@/paraglide/messages";
@@ -9,6 +9,12 @@ export function GameStatus({ game }: { game: GameSummary }) {
     return (
       <Badge variant="warning">
         <TriangleAlertIcon /> {m.status_conflict()}
+      </Badge>
+    );
+  if (game.overwritten)
+    return (
+      <Badge variant="warning">
+        <HistoryIcon /> {m.status_overwritten()}
       </Badge>
     );
   if (game.playingOn)

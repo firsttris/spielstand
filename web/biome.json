@@ -11,7 +11,8 @@
       "!playwright-report",
       "!project.inlang/cache",
       "!project.inlang/.meta.json",
-      "!project.inlang/.lix"
+      "!project.inlang/.lix",
+      "!playwright-report-stack"
     ]
   },
   "formatter": {

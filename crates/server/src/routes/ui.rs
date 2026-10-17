@@ -24,7 +24,7 @@ use crate::{
     auth::{self, Admin, SESSION_COOKIE, SESSION_DAYS},
     db,
     error::{ApiResult, AppError},
-    importer, queries, versions,
+    importer, modes, queries, versions,
 };
 
 pub fn router() -> Router<AppState> {
@@ -137,10 +137,15 @@ async fn login(
         .fetch_optional(&state.db)
         .await?;
     let (hash,) = row.ok_or(AppError::Unauthorized)?;
+    let attempt = state
+        .logins
+        .attempt(std::time::Instant::now())
+        .ok_or(AppError::TooManyAttempts)?;
     if !auth::verify_password(&req.password, &hash) {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         return Err(AppError::Unauthorized);
     }
+    attempt.succeeded();
     let jar = start_session(&state, jar).await?;
     Ok((
         jar,
@@ -191,6 +196,17 @@ async fn restore(
         .ok_or(AppError::NotFound)?;
     if meta.game != game {
         return Err(AppError::BadRequest("version belongs to another game".into()));
+    }
+    if !state.hub.is_online(&req.device) {
+        return Err(AppError::Conflict("Das Gerät ist nicht verbunden".into()));
+    }
+    // Loading a version means continuing from it. When Spielstand moves this game's saves, it
+    // becomes the current state and the other devices follow (their states are kept as
+    // versions first); in backup mode only the chosen device is touched.
+    if modes::mode_of(&state, &game).await?.0 == spielstand_protocol::SaveMode::Sync
+        && versions::head_of(&state.db, &game).await?.as_deref() != Some(req.version.as_str())
+    {
+        versions::resolve(&state, &game, &req.version).await?;
     }
     let sent = state.hub.send(
         &req.device,

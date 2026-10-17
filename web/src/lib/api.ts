@@ -1,10 +1,13 @@
 import type { Activity } from "@/bindings/Activity";
 import type { Device } from "@/bindings/Device";
+import type { DeviceSettings } from "@/bindings/DeviceSettings";
 import type { GameDetail } from "@/bindings/GameDetail";
 import type { GameSummary } from "@/bindings/GameSummary";
 import type { ImportReport } from "@/bindings/ImportReport";
 import type { Overview } from "@/bindings/Overview";
 import type { PairCode } from "@/bindings/PairCode";
+import type { SaveMode } from "@/bindings/SaveMode";
+import type { ServerSettings } from "@/bindings/ServerSettings";
 import type { SessionInfo } from "@/bindings/SessionInfo";
 import type { VersionPatch } from "@/bindings/VersionPatch";
 
@@ -64,4 +67,14 @@ export const api = {
   pairCode: () => call<PairCode>("POST", "/api/pair-codes"),
   activity: (limit = 50) => call<Activity[]>("GET", `/api/activity?limit=${limit}`),
   importLudusavi: (source: string) => call<ImportReport>("POST", "/api/import", { source }),
+  settings: () => call<ServerSettings>("GET", "/api/settings"),
+  setDefaultMode: (defaultMode: SaveMode) => call<ServerSettings>("PUT", "/api/settings", { defaultMode }),
+  /** `null` lets the game follow the default mode again. */
+  setGameMode: (game: string, mode: SaveMode | null) =>
+    call<void>("PUT", `/api/games/${enc(game)}/mode`, { mode }),
+  setPrefix: (game: string, device: string, prefix: string) =>
+    call<void>("PUT", `/api/games/${enc(game)}/prefix`, { device, prefix }),
+  setGameFolders: (device: string, gameFolders: string[]) =>
+    call<DeviceSettings>("PUT", `/api/devices/${enc(device)}/settings`, { gameFolders }),
+  dismissAlert: (id: number) => call<void>("POST", `/api/alerts/${id}/dismiss`),
 };

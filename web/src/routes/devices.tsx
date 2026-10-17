@@ -4,6 +4,7 @@ import { MonitorIcon } from "lucide-react";
 import { useState } from "react";
 import type { Device } from "@/bindings/Device";
 import { ActivityList } from "@/components/activity-list";
+import { GameFolders } from "@/components/game-folders";
 import { PairDialog } from "@/components/pair-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,7 +68,17 @@ function DeviceCard({ device }: { device: Device }) {
         <dd>{device.online ? m.device_connected() : device.lastSeen ? relative(device.lastSeen) : "–"}</dd>
         <dt className="text-muted-foreground">{m.device_conflicts()}</dt>
         <dd>{device.pendingConflicts}</dd>
+        {(device.stellwerkAgent || device.prefixr) && (
+          <>
+            <dt className="text-muted-foreground">{m.detected_title()}</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              {device.stellwerkAgent && <Badge variant="outline">{m.detected_stellwerk()}</Badge>}
+              {device.prefixr && <Badge variant="outline">{m.detected_prefixr()}</Badge>}
+            </dd>
+          </>
+        )}
       </dl>
+      <GameFolders device={device} />
       <Button
         variant="ghost"
         size="sm"

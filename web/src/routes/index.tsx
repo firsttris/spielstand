@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckIcon, MonitorIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, HistoryIcon, MonitorIcon, TriangleAlertIcon } from "lucide-react";
 import { GameTable } from "@/components/game-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ function Overview() {
   const games = useQuery({ queryKey: ["games"], queryFn: api.games, refetchInterval: 5_000 });
   const o = overview.data;
   const conflicts = (games.data ?? []).filter((g) => g.conflict);
+  const overwritten = (games.data ?? []).filter((g) => g.overwritten);
 
   return (
     <>
@@ -101,6 +102,32 @@ function Overview() {
           </div>
           <div className="flex flex-wrap gap-2 pl-7">
             {conflicts.map((g) => (
+              <Button key={g.id} size="sm" variant="outline" asChild>
+                <Link to="/games/$gameId" params={{ gameId: g.id }}>
+                  {g.id}
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {overwritten.length > 0 && (
+        <section
+          role="alert"
+          className="flex flex-col gap-3 rounded-lg border border-amber-500/35 bg-warning-muted px-4 py-3.5"
+        >
+          <div className="flex gap-3">
+            <HistoryIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+            <div>
+              <h2 className="text-sm font-medium text-warning">
+                {m.alerts_title({ n: overwritten.length })}
+              </h2>
+              <p className="text-sm text-muted-foreground">{m.alerts_text()}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 pl-7">
+            {overwritten.map((g) => (
               <Button key={g.id} size="sm" variant="outline" asChild>
                 <Link to="/games/$gameId" params={{ gameId: g.id }}>
                   {g.id}

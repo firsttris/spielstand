@@ -34,7 +34,11 @@ export function ConflictChooser({ game }: { game: GameDetail }) {
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
         {choices.map((v) => (
-          <div key={v.meta.id} className="flex flex-col gap-3 rounded-lg border p-4">
+          <section
+            key={v.meta.id}
+            aria-label={v.deviceName}
+            className="flex flex-col gap-3 rounded-lg border p-4"
+          >
             <span className="font-semibold">{v.deviceName}</span>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
               <dt className="text-muted-foreground">{m.conflict_when()}</dt>
@@ -47,7 +51,7 @@ export function ConflictChooser({ game }: { game: GameDetail }) {
             <Button size="sm" disabled={resolve.isPending} onClick={() => resolve.mutate(v.meta.id)}>
               {m.conflict_choose()}
             </Button>
-          </div>
+          </section>
         ))}
       </div>
     </Card>

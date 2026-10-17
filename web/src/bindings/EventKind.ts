@@ -3,4 +3,4 @@
 /**
  * What happened, stored as its name; the web UI says it in the reader's language.
  */
-export type EventKind = "uploaded" | "branched" | "keptOwn" | "resolved" | "restoreRequested" | "started" | "stopped" | "paired" | "removed" | "imported" | "other";
+export type EventKind = "uploaded" | "branched" | "keptOwn" | "resolved" | "restoreRequested" | "started" | "stopped" | "paired" | "removed" | "imported" | "overwritten" | "modeChanged" | "other";

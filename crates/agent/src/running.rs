@@ -120,6 +120,25 @@ mod tests {
         );
     }
 
+    /// A real process started from inside an install folder (as Proton starts a game's `.exe`)
+    /// is recognised, and no longer once it ended.
+    #[test]
+    fn a_running_process_inside_an_install_folder_is_recognised() {
+        let dir = tempfile::tempdir().unwrap();
+        let install = dir.path().join("Games/Some Game/bin");
+        std::fs::create_dir_all(&install).unwrap();
+        let exe = install.join("game");
+        std::fs::copy("/bin/sleep", &exe).unwrap();
+        let mut child = std::process::Command::new(&exe).arg("30").spawn().unwrap();
+        let installs = vec![("Some Game".to_string(), dir.path().join("Games/Some Game"))];
+        let mut watcher = Watcher::default();
+        let running = watcher.running(&installs);
+        assert_eq!(running.get("Some Game"), Some(&child.id()));
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(watcher.running(&installs).is_empty());
+    }
+
     #[test]
     fn wrapper_locks_are_released() {
         let dir = tempfile::tempdir().unwrap();

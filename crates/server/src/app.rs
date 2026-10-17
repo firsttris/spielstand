@@ -5,7 +5,7 @@ use spielstand_protocol::MirrorStatus;
 use tokio::sync::Notify;
 use tower_http::trace::TraceLayer;
 
-use crate::{db::Db, hub::Hub, routes, settings::Settings};
+use crate::{db::Db, hub::Hub, routes, settings::Settings, throttle::Throttle};
 
 /// Packages above this size are refused (saves are small; this guards the disk).
 pub const MAX_PACKAGE: u64 = 4 * 1024 * 1024 * 1024;
@@ -18,6 +18,8 @@ pub struct AppState {
     /// Poked after every new version so the mirror copies it soon.
     pub mirror_wake: Arc<Notify>,
     pub mirror_status: Arc<Mutex<MirrorStatus>>,
+    pub logins: Throttle,
+    pub pairings: Throttle,
 }
 
 impl AppState {
@@ -38,6 +40,8 @@ impl AppState {
             hub: Hub::default(),
             mirror_wake: Arc::new(Notify::new()),
             mirror_status: Arc::new(Mutex::new(mirror_status)),
+            logins: Throttle::new(10, std::time::Duration::from_secs(60)),
+            pairings: Throttle::new(20, std::time::Duration::from_secs(60)),
         })
     }
 }
@@ -46,6 +50,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .merge(routes::agent::router())
         .merge(routes::ui::router())
+        .merge(routes::settings::router())
         .merge(routes::assets::router())
         .layer(DefaultBodyLimit::disable())
         .layer(TraceLayer::new_for_http())

@@ -10,6 +10,7 @@ pub enum AppError {
     Unauthorized,
     BadRequest(String),
     Conflict(String),
+    TooManyAttempts,
     Internal(anyhow::Error),
 }
 
@@ -28,6 +29,10 @@ impl IntoResponse for AppError {
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_string()),
             Self::BadRequest(m) => (StatusCode::BAD_REQUEST, m),
             Self::Conflict(m) => (StatusCode::CONFLICT, m),
+            Self::TooManyAttempts => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many failed attempts; wait a minute".to_string(),
+            ),
             Self::Internal(e) => {
                 tracing::error!("{e:#}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal error".to_string())

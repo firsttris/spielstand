@@ -1,18 +1,20 @@
-//! The flows: what happens before a game starts, after it ends, and when the server pushes a
-//! new head. Every write goes through `restore_version`, which snapshots first.
+//! The flows: what happens before a game starts, after it ends, when a save file changes and
+//! when the server pushes a new head. Every write goes through `restore_version`, which
+//! snapshots first; in backup mode nothing but an explicit restore ever writes.
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
-use spielstand_core::decide::{self, Decision};
-use spielstand_protocol::{Trigger, UploadStatus, VersionMeta};
+use spielstand_core::{
+    decide::{Decision, Local, Remote},
+    plan::{self, Known, SyncMode},
+};
+use spielstand_protocol::{GameProblem, Trigger, UploadStatus};
 
 use crate::{
-    client::Client,
-    config::{AgentConfig, Dirs},
+    agent::{Agent, sync_mode},
     disk,
-    engine::Scanner,
-    store::{Base, Store},
+    store::Base,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,96 +62,42 @@ pub enum Outcome {
     Offline,
 }
 
-#[derive(Clone)]
-pub struct Agent {
-    pub dirs: Dirs,
-    pub config: AgentConfig,
-    pub store: Store,
-    pub client: Client,
-    pub scanner: Arc<dyn Scanner>,
-    pub ui: Arc<dyn Ui>,
-}
-
 impl Agent {
-    fn cached(&self, id: &str) -> PathBuf {
-        self.dirs.cache().join(format!("{id}.tar.zst"))
-    }
-
-    /// Uploads the outbox in order; stops at the first failure (the server may be away).
-    pub async fn flush(&self) -> anyhow::Result<Vec<(VersionMeta, UploadStatus)>> {
-        let mut done = vec![];
-        for pending in self.store.pending().await? {
-            let outcome = self.client.upload(&pending.meta, &pending.blob).await?;
-            tokio::fs::create_dir_all(self.dirs.cache()).await?;
-            let _ = tokio::fs::rename(&pending.blob, self.cached(&pending.meta.id)).await;
-            self.store.confirmed(&pending.meta.id).await?;
-            done.push((pending.meta, outcome.status));
-        }
-        Ok(done)
-    }
-
-    async fn blob_for(&self, meta: &VersionMeta) -> anyhow::Result<PathBuf> {
-        let path = self.cached(&meta.id);
-        let fine = tokio::fs::try_exists(&path).await? && {
-            let p = path.clone();
-            tokio::task::spawn_blocking(move || spielstand_core::pack::sha256_file(&p)).await??
-                == meta.blob_sha256
-        };
-        if !fine {
-            self.client.download(&meta.id, &path).await?;
-        }
-        Ok(path)
-    }
-
-    async fn snapshot(
-        &self,
-        game: &str,
-        trigger: Trigger,
-        seconds: Option<u64>,
-    ) -> anyhow::Result<Option<VersionMeta>> {
-        let scanner = self.scanner.clone();
-        disk::snapshot(
-            &self.dirs,
-            &self.store,
-            scanner.as_ref(),
-            &self.config.device_id,
-            game,
-            trigger,
-            seconds,
-        )
-        .await
-    }
-
-    /// The state to put back if writing fails: a fresh snapshot, or the base it equals.
-    async fn fallback(&self, game: &str) -> anyhow::Result<Option<(VersionMeta, PathBuf)>> {
-        if let Some(meta) = self.snapshot(game, Trigger::BeforeRestore, None).await? {
-            let blob = self.dirs.outbox().join(format!("{}.tar.zst", meta.id));
-            return Ok(Some((meta, blob)));
-        }
-        let Some(base) = self.store.base(game).await? else {
-            return Ok(None);
-        };
-        let pending = self.store.pending().await?;
-        if let Some(p) = pending.into_iter().find(|p| p.meta.id == base.version) {
-            return Ok(Some((p.meta, p.blob)));
-        }
-        let meta = self.client.meta(&base.version).await?;
-        let blob = self.blob_for(&meta).await?;
-        Ok(Some((meta, blob)))
-    }
-
     /// Loads version `id` onto the disk, keeping what was there as a version first.
     pub async fn restore_version(&self, game: &str, id: &str) -> anyhow::Result<()> {
         let meta = self.client.meta(id).await?;
         anyhow::ensure!(meta.game == game, "version {id} belongs to {}", meta.game);
+        let prefix = match self.prefix_for(game, &meta) {
+            Ok(p) => p,
+            Err(problem) => {
+                self.set_problem(game, Some(problem.clone()));
+                anyhow::bail!("{game}: {problem:?}");
+            }
+        };
         let blob = self.blob_for(&meta).await?;
         let previous = self.fallback(game).await?;
-        let (dirs, scanner, m) = (self.dirs.clone(), self.scanner.clone(), meta.clone());
-        tokio::task::spawn_blocking(move || {
+        let (dirs, scanner, m, p) = (
+            self.dirs.clone(),
+            self.scanner.clone(),
+            meta.clone(),
+            prefix.clone(),
+        );
+        let written = tokio::task::spawn_blocking(move || {
             let prev = previous.as_ref().map(|(m, b)| (m, b.as_path()));
-            disk::write_or_roll_back(&dirs, scanner.as_ref(), &m, &blob, prev)
+            disk::write_or_roll_back(&dirs, scanner.as_ref(), &m, &blob, p.as_deref(), prev)
         })
-        .await??;
+        .await?;
+        if let Err(e) = written {
+            self.set_problem(
+                game,
+                Some(GameProblem::Failed {
+                    message: format!("{e:#}"),
+                }),
+            );
+            return Err(e);
+        }
+        self.set_problem(game, None);
+        self.places_changed.notify_one();
         self.store
             .set_base(
                 game,
@@ -166,8 +114,18 @@ impl Agent {
         Ok(())
     }
 
-    /// Brings one game in line with the server, by the four cases of the safety concept.
+    /// Brings one game in line with the server, in the mode in effect for it.
     pub async fn sync_game(&self, game: &str, mode: Mode) -> anyhow::Result<Outcome> {
+        let (save_mode, _) = self.effective_mode(game);
+        self.run(game, mode, sync_mode(save_mode)).await
+    }
+
+    /// A save file changed: record it, never write (the game may be running right now).
+    pub async fn observe(&self, game: &str) -> anyhow::Result<Outcome> {
+        self.run(game, Mode::Background, SyncMode::Backup).await
+    }
+
+    async fn run(&self, game: &str, mode: Mode, save_mode: SyncMode) -> anyhow::Result<Outcome> {
         let _ = self.flush().await;
         let Ok(heads) = self.client.heads().await else {
             // Without the server nothing is decided, but a changed disk is kept right away:
@@ -182,7 +140,18 @@ impl Agent {
         };
         let base = self.store.base(game).await?;
         let head = heads.heads.get(game);
-        let local = decide::Local {
+        let changed = disk.content_hash.is_some()
+            && disk.content_hash.as_deref() != base.as_ref().map(|b| b.content_hash.as_str());
+        let known = match (&disk.content_hash, changed) {
+            (Some(hash), true) => self
+                .client
+                .known(game, hash, base.as_ref().map(|b| b.version.as_str()))
+                .await
+                .ok()
+                .filter(|k| k.version.is_some()),
+            _ => None,
+        };
+        let local = Local {
             base: base.as_ref().map(|b| b.version.as_str()),
             base_hash: base.as_ref().map(|b| b.content_hash.as_str()),
             disk_hash: disk.content_hash.as_deref(),
@@ -190,25 +159,42 @@ impl Agent {
                 .as_ref()
                 .is_some_and(|b| heads.open_branches.contains(&b.version)),
         };
-        let remote = decide::Remote {
+        let remote = Remote {
             head: head.map(|h| h.id.as_str()),
             head_hash: head.map(|h| h.content_hash.as_str()),
         };
+        let planned = plan::plan(
+            local,
+            known.as_ref().and_then(|k| {
+                Some(Known {
+                    version: k.version.as_deref()?,
+                    descends_from_base: k.descends_from_base,
+                    is_open_branch: k.is_open_branch,
+                })
+            }),
+            remote,
+            save_mode,
+        );
 
-        match decide::decide(local, remote) {
+        if let (Some(version), Some(hash)) = (&planned.adopt, &disk.content_hash) {
+            self.adopt(game, version, hash).await?;
+            if let Some(lost) = &planned.overwritten {
+                self.client.overwritten(game, lost, version).await?;
+                self.ui
+                    .info(
+                        &format!("{game}: älterer Spielstand eingespielt"),
+                        "Ein anderes Programm hat einen neueren Stand ersetzt. Der neuere ist gesichert; \
+                         in der Web-UI lässt er sich mit einem Klick zurückholen.",
+                    )
+                    .await;
+            }
+        }
+
+        match planned.decision {
             Decision::Nothing => Ok(Outcome::UpToDate),
             Decision::Adopt { version } => {
                 let hash = head.map(|h| h.content_hash.clone()).unwrap_or_default();
-                self.store
-                    .set_base(
-                        game,
-                        &Base {
-                            version: version.clone(),
-                            content_hash: hash,
-                        },
-                    )
-                    .await?;
-                self.client.report_base(game, &version).await?;
+                self.adopt(game, &version, &hash).await?;
                 Ok(Outcome::UpToDate)
             }
             Decision::Upload => {
@@ -248,6 +234,23 @@ impl Agent {
                 self.resolve(game, choice, &head_id).await
             }
         }
+    }
+
+    /// The disk holds `version` already: remember it, tell the server.
+    async fn adopt(&self, game: &str, version: &str, hash: &str) -> anyhow::Result<()> {
+        if self.store.base(game).await?.is_none() {
+            self.places_changed.notify_one();
+        }
+        self.store
+            .set_base(
+                game,
+                &Base {
+                    version: version.to_string(),
+                    content_hash: hash.to_string(),
+                },
+            )
+            .await?;
+        self.client.report_base(game, version).await
     }
 
     /// Acts on the answer to a conflict question; no answer keeps the local state.

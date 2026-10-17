@@ -17,4 +17,9 @@ contentHash: string,
 /**
  * SHA-256 of the packed `.tar.zst`.
  */
-blobSha256: string, blobSize: number, files: Array<FileEntry>, };
+blobSha256: string, blobSize: number, files: Array<FileEntry>, 
+/**
+ * Where the Wine prefix of files stored as `<prefix>/…` was, as a portable path
+ * (e.g. `<root:games>/Hades/prefix`): a hint for finding the prefix on another device.
+ */
+prefix?: string | null, };

@@ -4,8 +4,9 @@ use std::{path::Path, time::Duration};
 
 use futures::StreamExt;
 use spielstand_protocol::{
-    BaseReport, HeadsResponse, PairRequest, PairResponse, PresenceReport, PromoteOutcome, PromoteRequest,
-    UploadOutcome, VersionMeta, paths,
+    AgentSettings, BaseReport, DeviceReport, HeadsResponse, KnownRequest, KnownResponse, OverwriteReport,
+    PairRequest, PairResponse, PresenceReport, PromoteOutcome, PromoteRequest, UploadOutcome, VersionMeta,
+    paths,
 };
 use tokio::io::AsyncWriteExt;
 
@@ -165,5 +166,56 @@ impl Client {
             .send()
             .await?;
         ok(res).await.map(|_| ())
+    }
+
+    async fn post<T: serde::Serialize>(&self, path: &str, body: &T) -> anyhow::Result<reqwest::Response> {
+        let res = self
+            .http
+            .post(self.url(path))
+            .bearer_auth(&self.token)
+            .timeout(Duration::from_secs(30))
+            .json(body)
+            .send()
+            .await?;
+        ok(res).await
+    }
+
+    /// Which version has this content, and does it descend from `base`?
+    pub async fn known(
+        &self,
+        game: &str,
+        content_hash: &str,
+        base: Option<&str>,
+    ) -> anyhow::Result<KnownResponse> {
+        let req = KnownRequest {
+            game: game.into(),
+            content_hash: content_hash.into(),
+            base: base.map(str::to_string),
+        };
+        Ok(self.post(paths::KNOWN, &req).await?.json().await?)
+    }
+
+    pub async fn overwritten(&self, game: &str, lost: &str, found: &str) -> anyhow::Result<()> {
+        let req = OverwriteReport {
+            game: game.into(),
+            lost: lost.into(),
+            found: found.into(),
+        };
+        self.post(paths::OVERWRITES, &req).await.map(|_| ())
+    }
+
+    pub async fn settings(&self) -> anyhow::Result<AgentSettings> {
+        let res = self
+            .http
+            .get(self.url(paths::SETTINGS))
+            .bearer_auth(&self.token)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await?;
+        Ok(ok(res).await?.json().await?)
+    }
+
+    pub async fn report(&self, report: &DeviceReport) -> anyhow::Result<()> {
+        self.post(paths::REPORT, report).await.map(|_| ())
     }
 }

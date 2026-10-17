@@ -13,6 +13,18 @@ export function Input({ className, ...props }: React.ComponentProps<"input">) {
   );
 }
 
+export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      className={cn(
+        "min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 export function Label({ className, ...props }: React.ComponentProps<"label">) {
   // biome-ignore lint/a11y/noLabelWithoutControl: callers pass htmlFor
   return <label className={cn("text-sm font-medium", className)} {...props} />;

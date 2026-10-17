@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import type { SaveMode } from "@/bindings/SaveMode";
+import { modeText } from "@/components/mode-label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -28,10 +30,39 @@ function Settings() {
     onSuccess: () => client.invalidateQueries({ queryKey: ["session"] }),
   });
   const mirror = overview.data?.mirror;
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings });
+  const defaultMode = useMutation({
+    mutationFn: (mode: SaveMode) => api.setDefaultMode(mode),
+    onSuccess: (saved) => client.setQueryData(["settings"], saved),
+  });
 
   return (
     <>
       <PageHeader title={m.nav_settings()} />
+
+      <Card className="flex flex-wrap items-center gap-3 p-5">
+        <div className="flex min-w-72 flex-1 flex-col gap-0.5">
+          <CardTitle>{m.default_mode_title()}</CardTitle>
+          <CardDescription>
+            {m.default_mode_text()} {settings.data && modeText(settings.data.defaultMode)}
+          </CardDescription>
+        </div>
+        {settings.data && (
+          <Select
+            value={settings.data.defaultMode}
+            onValueChange={(v) => defaultMode.mutate(v as SaveMode)}
+            disabled={defaultMode.isPending}
+          >
+            <SelectTrigger className="w-48" aria-label={m.default_mode_title()}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sync">{m.mode_sync()}</SelectItem>
+              <SelectItem value="backup">{m.mode_backup()}</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </Card>
 
       <Card>
         <CardHeader>

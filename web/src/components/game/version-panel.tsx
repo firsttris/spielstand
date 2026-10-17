@@ -25,7 +25,15 @@ const changeBadge: Record<
   removed: { variant: "warning", text: m.change_removed },
 };
 
-export function VersionPanel({ game, row }: { game: GameDetail; row: VersionRow }) {
+export function VersionPanel({
+  game,
+  row,
+  onRestore,
+}: {
+  game: GameDetail;
+  row: VersionRow;
+  onRestore: () => void;
+}) {
   const client = useQueryClient();
   const devices = useQuery({ queryKey: ["devices"], queryFn: api.devices, refetchInterval: 5_000 });
   const online = (devices.data ?? []).filter((d) => d.online);
@@ -37,7 +45,11 @@ export function VersionPanel({ game, row }: { game: GameDetail; row: VersionRow 
   const [label, setLabel] = useState(row.label ?? "");
 
   const refresh = () => client.invalidateQueries({ queryKey: ["game", game.id] });
-  const restore = useMutation({ mutationFn: () => api.restore(game.id, device?.id ?? "", row.meta.id) });
+  const restore = useMutation({
+    mutationFn: () => api.restore(game.id, device?.id ?? "", row.meta.id),
+    onMutate: onRestore,
+    onSuccess: refresh,
+  });
   const pin = useMutation({
     mutationFn: () => api.patchVersion(row.meta.id, { pinned: !row.pinned, label: null }),
     onSuccess: refresh,
@@ -86,6 +98,11 @@ export function VersionPanel({ game, row }: { game: GameDetail; row: VersionRow 
         <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
         {m.restore_safety()}
       </p>
+      {game.mode === "sync" && !row.isHead && (
+        <p role="note" className="text-[13px] text-muted-foreground">
+          {m.restore_continues()}
+        </p>
+      )}
 
       {online.length === 0 ? (
         <p className="text-sm text-muted-foreground">{m.restore_no_device()}</p>

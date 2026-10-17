@@ -48,8 +48,8 @@ async fn insert(tx: &mut sqlx::SqliteConnection, v: &NewVersion, branch: bool) -
         .await?;
     sqlx::query(
         "INSERT INTO versions (id, game, parent, device, created_at, trigger, session_seconds, content_hash,
-            blob_sha256, blob_size, files_json, pinned, label, branch)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            blob_sha256, blob_size, files_json, pinned, label, branch, prefix)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&m.id)
     .bind(&m.game)
@@ -65,6 +65,7 @@ async fn insert(tx: &mut sqlx::SqliteConnection, v: &NewVersion, branch: bool) -
     .bind(v.pinned)
     .bind(&v.label)
     .bind(branch)
+    .bind(&m.prefix)
     .execute(&mut *tx)
     .await?;
     Ok(())
@@ -313,6 +314,7 @@ pub async fn report_base(state: &AppState, device: &str, game: &str, version: &s
         resolve_conflicts(&mut tx, game, Some(device)).await?;
     }
     tx.commit().await?;
+    crate::alerts::settle(state, device, game, version).await?;
     Ok(())
 }
 
@@ -365,6 +367,7 @@ pub fn row_to_meta(row: &sqlx::sqlite::SqliteRow) -> anyhow::Result<VersionMeta>
         blob_sha256: row.try_get("blob_sha256")?,
         blob_size: row.try_get::<i64, _>("blob_size")? as u64,
         files: serde_json::from_str(&row.try_get::<String, _>("files_json")?)?,
+        prefix: row.try_get("prefix")?,
     })
 }
 

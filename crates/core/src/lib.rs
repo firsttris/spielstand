@@ -2,6 +2,7 @@
 
 pub mod decide;
 pub mod pack;
+pub mod plan;
 pub mod portable;
 pub mod retention;
 

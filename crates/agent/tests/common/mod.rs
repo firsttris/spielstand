@@ -13,6 +13,7 @@ use spielstand_agent::{
     client::Client,
     config::{AgentConfig, Dirs},
     engine::FakeScanner,
+    settings::Sources,
     store::Store,
 };
 use spielstand_core::portable::Anchors;
@@ -116,6 +117,25 @@ impl Pc {
 }
 
 pub async fn pc(server: &Server, name: &str, steam_cloud: bool) -> Pc {
+    pc_with(server, name, |home| {
+        let mut games = BTreeMap::new();
+        games.insert(GAME.to_string(), vec![home.join(".local/share/EldenRing")]);
+        let scanner = FakeScanner {
+            anchors: Anchors {
+                home: home.to_path_buf(),
+                roots: vec![],
+            },
+            games,
+            steam_cloud: if steam_cloud { vec![GAME.into()] } else { vec![] },
+            ..Default::default()
+        };
+        (scanner, Sources::default())
+    })
+    .await
+}
+
+/// A paired PC whose disk and outside programs `setup` describes, given its home folder.
+pub async fn pc_with(server: &Server, name: &str, setup: impl FnOnce(&Path) -> (FakeScanner, Sources)) -> Pc {
     let http = reqwest::Client::new();
     let code: serde_json::Value = http
         .post(format!("{}/api/pair-codes", server.url))
@@ -147,25 +167,17 @@ pub async fn pc(server: &Server, name: &str, steam_cloud: bool) -> Pc {
         restore_steam_cloud_games: false,
         question_seconds: 1,
     };
-    let mut games = BTreeMap::new();
-    games.insert(GAME.to_string(), vec![home.join(".local/share/EldenRing")]);
-    let scanner = FakeScanner {
-        anchors: Anchors {
-            home: home.clone(),
-            roots: vec![],
-        },
-        games,
-        steam_cloud: if steam_cloud { vec![GAME.into()] } else { vec![] },
-    };
+    let (scanner, sources) = setup(&home);
     let ui = Arc::new(Scripted::default());
-    let agent = Agent {
-        store: Store::open(&dirs.db()).await.unwrap(),
-        client: Client::new(&server.url, &paired.token),
+    let agent = Agent::new(
         dirs,
         config,
-        scanner: Arc::new(scanner),
-        ui: ui.clone(),
-    };
+        Store::open(&root.join("data/agent.db")).await.unwrap(),
+        Client::new(&server.url, &paired.token),
+        Arc::new(scanner),
+        ui.clone(),
+        sources,
+    );
     Pc {
         agent,
         ui,
@@ -200,4 +212,75 @@ pub async fn server_contents(server: &Server, game: &str) -> Vec<String> {
 
 pub fn exists(p: &Path) -> bool {
     p.exists()
+}
+
+impl Server {
+    pub fn admin(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        reqwest::Client::new()
+            .request(method, format!("{}{path}", self.url))
+            .header("cookie", &self.cookie)
+            .header("x-spielstand-csrf", "1")
+    }
+
+    /// Sets a game's mode in the web UI and lets `pcs` pick it up.
+    pub async fn set_mode(&self, game: &str, mode: Option<&str>, pcs: &[&Pc]) {
+        let res = self
+            .admin(
+                reqwest::Method::PUT,
+                &format!("/api/games/{}/mode", urlencode(game)),
+            )
+            .json(&serde_json::json!({ "mode": mode }))
+            .send()
+            .await
+            .unwrap();
+        assert!(res.status().is_success(), "{}", res.text().await.unwrap());
+        for pc in pcs {
+            pc.agent.refresh_settings().await;
+        }
+    }
+
+    pub async fn game(&self, game: &str) -> serde_json::Value {
+        self.admin(reqwest::Method::GET, &format!("/api/games/{}", urlencode(game)))
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap()
+    }
+
+    pub async fn version_count(&self, game: &str) -> i64 {
+        let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM versions WHERE game = ?")
+            .bind(game)
+            .fetch_one(&self.state.db)
+            .await
+            .unwrap();
+        n
+    }
+}
+
+pub fn urlencode(s: &str) -> String {
+    s.replace('%', "%25").replace(' ', "%20").replace('\'', "%27")
+}
+
+/// A Wine prefix with the given profile folders (`"tristan->steamuser"` makes a link, as
+/// Proton and Prefixr do).
+pub fn make_prefix(dir: &Path, users: &[&str]) {
+    std::fs::create_dir_all(dir.join("drive_c/users")).unwrap();
+    std::fs::write(dir.join("system.reg"), "WINE REGISTRY Version 2\n").unwrap();
+    for u in users {
+        match u.split_once("->") {
+            Some((link, target)) => {
+                std::fs::create_dir_all(dir.join("drive_c/users").join(target)).unwrap();
+                std::os::unix::fs::symlink(target, dir.join("drive_c/users").join(link)).unwrap();
+            }
+            None => std::fs::create_dir_all(dir.join("drive_c/users").join(u)).unwrap(),
+        }
+    }
+}
+
+/// Marks `dir` as a Syncthing folder with the given `.stignore`.
+pub fn syncthing_folder(dir: &Path, stignore: &str) {
+    std::fs::create_dir_all(dir.join(".stfolder")).unwrap();
+    std::fs::write(dir.join(".stignore"), stignore).unwrap();
 }

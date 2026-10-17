@@ -78,8 +78,10 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
 
 ### 🔄 Sync
 
-- **Automatic**: backs up after every session (native and Proton games), loads what another PC
-  uploaded as soon as the game is not running.
+- **Automatic**: backs up every change to a save within seconds, loads what another PC uploaded as
+  soon as the game is not running. A new PC gets the newest state of every game it has installed.
+- **Sync or back up only**, per game: let Spielstand keep the PCs in step, or only keep versions of
+  each PC's saves while another tool syncs them.
 - **Steam launch option**: `spielstand-agent launch %command%` loads the newest state right before a
   game starts.
 - **Works offline**: versions wait on the PC and go up when the server is back.
@@ -91,6 +93,10 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
   for 90, then weekly), never the ones you marked *keep*.
 - **Backup before every write**, atomic writes with verification and rollback.
 - **Conflicts instead of overwrites**: played on two PCs without a sync? Both are kept, you choose.
+- **Older over newer is caught**: when another program puts an older save over a newer one, the web
+  UI says so and brings the newer one back with one click.
+- **Plays well with others**: notices saves Syncthing still syncs and backs them up only; tells
+  [Stellwerk](https://github.com/firsttris/stellwerk) which folders to leave out.
 - **Tested hard**: a property-based simulation plays thousands of random histories of PCs, outages
   and restores and checks that no save state is ever lost.
 
@@ -99,6 +105,9 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
 - **Timeline per game** with PC, play time and reason; name versions, keep them, download them.
 - **Load any version on any PC** from the web UI, with a preview of which files change.
 - **Finds the saves** with the Ludusavi manifest: thousands of games, Steam, Heroic, Lutris, Wine prefixes.
+- **One prefix per game**: saves in each game's own Wine prefix (Prefixr,
+  game folders like `~/Games`) load into the right prefix on every PC, whatever its path or user name.
+- **Says why**: each game's page shows where every PC keeps the save and why one is not in step.
 
 ### ☁️ Backup
 
@@ -116,6 +125,10 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
   <tr>
     <td><img src="docs/screenshots/devices.png" alt="Devices page: PCs and Steam Deck with online status and the game currently played"></td>
     <td><img src="docs/screenshots/pairing.png" alt="Pairing a new PC with a one-line install command"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/locations.png" alt="Where each PC keeps a game's save, in its own Wine prefix, and whether it is current"></td>
+    <td><img src="docs/screenshots/overwritten.png" alt="An alert: on one PC an older save replaced a newer one, with a button to bring the newer one back"></td>
   </tr>
 </table>
 
@@ -146,6 +159,8 @@ other stays a version.
 
 ### Does it work with Proton and non-Steam games?
 Yes. Saves in Wine and Proton prefixes, Heroic and Lutris are found through the Ludusavi manifest.
+When every game has its own prefix, Spielstand finds them in your game folders or in Prefixr and
+loads each save into that game's prefix on every PC.
 
 ### Does it run on Windows?
 Not yet: the agent is for Linux. The server runs anywhere Docker runs.

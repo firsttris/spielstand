@@ -36,6 +36,81 @@ its **current state** (*head*) is the newest version every PC should have.
 5. **A running game is never touched.** The agent sees running games (also under Proton) and loads
    nothing while one runs; the web UI shows which PC is playing what.
 
+## Modes: sync or back up only
+
+Each game has a mode; new games get the default mode from the settings, a game's page can change it.
+
+- **Synchronize**: the four cases above. Every PC follows the current state.
+- **Back up only**: every change on a PC is backed up as a version right away, but nothing is ever
+  written to a disk on its own. Use it while another program still syncs the saves, or for a game
+  you want versions of but play on one PC. Loading a version by hand from the web UI still works.
+
+A game set to *Synchronize* is backed up only on a PC whose save lies in a folder that another
+program keeps in step (see [Other sync programs](#other-sync-programs)); the web UI says so on that
+PC's row.
+
+## Loading a version
+
+*Load this version* on a game's page sends the version to a connected PC. The PC first backs up what
+it has, then writes the version.
+
+- In *Synchronize* mode loading means *continue from here*: the loaded version becomes the current
+  state, and every other PC follows it, each backing up its own state first.
+- In *Back up only* mode only the chosen PC changes.
+
+## Older saves over newer ones
+
+Another program (a sync tool, a copy by hand, a cloud restore) can put an older save over a newer
+one. The agent notices when a PC's saves become a version the server already knows that is not
+descended from what the PC last had. It then:
+
+- records the change as a version, so nothing is lost,
+- raises an alert on the overview and the game's page: *on PC X the state from … was replaced by an
+  older one*,
+- in *Synchronize* mode, does not upload the older state as the current one; the PC catches up with
+  the current state again.
+
+The alert offers to load the newer state back onto that PC, or to dismiss it. It goes away on its
+own once the PC holds the newer state again.
+
+![An older save over a newer one](screenshots/overwritten.png)
+
+## Games in Wine prefixes
+
+Under Linux most Windows games keep their saves inside their own Wine prefix
+(`<prefix>/drive_c/users/<name>/…`). Spielstand stores those saves relative to the prefix and the
+Windows profile, so the same version can be loaded into a different prefix on another PC: the
+Steam Deck's prefix on the SD card and the desktop's in `~/Games` hold the same save. In a prefix,
+the profile `steamuser` is used, otherwise the only profile there is.
+
+Which prefix belongs to a game on a PC is found in this order:
+
+1. the prefix the saves are in right now,
+2. the prefix chosen for that PC on the game's page,
+3. the prefix the version came from, if the same path exists here,
+4. the one [Prefixr](agent.md#where-it-looks-for-saves) game of that name.
+
+If several prefixes could fit, nothing is written; the game's page asks which one it is.
+
+![Where each PC keeps a game's save](screenshots/locations.png)
+
+## A new PC
+
+A new PC follows every game it has installed (found by a launcher, Prefixr or a prefix chosen in
+the web UI), also when it has no saves for it yet: it loads the current state as soon as it knows
+where the saves go.
+
+## Other sync programs
+
+Two programs that both sync the same save files fight each other. The agent checks every save
+folder:
+
+- **Syncthing**: if the save lies in a Syncthing folder and is not excluded in its `.stignore`, the
+  game is backed up only on that PC, and the web UI shows the folder and why.
+- **[Stellwerk](https://github.com/firsttris/stellwerk)**: Spielstand writes the save folders of every
+  game it synchronizes to `~/.local/share/stellwerk-agent/ignore.d/spielstand.list`; Stellwerk then
+  leaves them out, so it syncs the game and the prefix and Spielstand the saves.
+
 ## Conflicts
 
 A conflict happens when a game was played on two PCs without a sync in between, for example on the

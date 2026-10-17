@@ -46,5 +46,19 @@ restore_steam_cloud_games = false
 question_seconds = 60
 ```
 
-`SPIELSTAND_AGENT_HOME` puts configuration and data below one folder instead (portable installs,
-tests).
+Everything else is set in the web UI and sent to the agent: the default mode and each game's mode
+(*Settings*, a game's page), the game folders per PC (*Devices*) and the prefix of a game on a PC
+(a game's page). The agent keeps the last settings it got, so it works the same while offline.
+
+| Variable | |
+|---|---|
+| `SPIELSTAND_AGENT_HOME` | configuration and data below one folder instead (portable installs, tests) |
+| `SPIELSTAND_QUIET_SECONDS` | how long save files must be quiet before a change is backed up (default 10) |
+| `SPIELSTAND_MANIFEST` | a Ludusavi manifest file to use instead of downloading it (offline, tests) |
+| `SPIELSTAND_PREFIXR_CONFIG` | Prefixr's library file, if not in `~/.config/com.tristan.prefixr/` |
+| `SPIELSTAND_STELLWERK_DIR` | Stellwerk's data folder, if not `~/.local/share/stellwerk-agent` |
+
+## Limits
+
+The server accepts 10 login attempts and 20 pairing attempts a minute; further ones get
+`429 Too Many Requests` until the minute is over.

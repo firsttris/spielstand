@@ -3,10 +3,12 @@
 use spielstand_protocol::EventKind;
 use std::collections::{BTreeMap, BTreeSet};
 
-use spielstand_protocol::{Activity, Device, GameDetail, GameSummary, HeadSummary, Overview, VersionRow};
+use spielstand_protocol::{
+    Activity, Device, DeviceReport, GameDetail, GameSummary, HeadSummary, Overview, VersionRow,
+};
 use sqlx::Row;
 
-use crate::{app::AppState, db, presence, versions};
+use crate::{alerts, app::AppState, db, modes, presence, reports, versions};
 
 async fn device_names(state: &AppState) -> anyhow::Result<BTreeMap<String, String>> {
     let rows: Vec<(String, String)> = sqlx::query_as("SELECT id, name FROM devices")
@@ -40,7 +42,14 @@ pub async fn devices(state: &AppState) -> anyhow::Result<Vec<Device>> {
             let id: String = r.try_get("id")?;
             let last_seen: Option<String> = r.try_get("last_seen")?;
             let current = presence::is_current(state, &id, last_seen.as_deref());
+            let report: Option<DeviceReport> = r
+                .try_get::<Option<String>, _>("report")?
+                .and_then(|json| serde_json::from_str(&json).ok());
+            let folders: String = r.try_get("game_folders")?;
             Ok(Device {
+                game_folders: serde_json::from_str(&folders).unwrap_or_default(),
+                stellwerk_agent: report.as_ref().is_some_and(|r| r.stellwerk_agent),
+                prefixr: report.as_ref().is_some_and(|r| r.prefixr),
                 online: state.hub.is_online(&id),
                 name: r.try_get("name")?,
                 hostname: r.try_get("hostname")?,
@@ -63,6 +72,12 @@ pub async fn devices(state: &AppState) -> anyhow::Result<Vec<Device>> {
 pub async fn games(state: &AppState) -> anyhow::Result<Vec<GameSummary>> {
     let names = device_names(state).await?;
     let playing = playing_by_game(state).await?;
+    let (default_mode, game_modes) = (modes::default_mode(state).await?, modes::game_modes(state).await?);
+    let overwritten: BTreeSet<String> = alerts::open(state, None)
+        .await?
+        .into_iter()
+        .map(|a| a.game)
+        .collect();
     let rows = sqlx::query(
         "SELECT g.id, g.head, v.content_hash, v.device, v.created_at,
             (SELECT COUNT(*) FROM versions x WHERE x.game = g.id AND x.deleted_at IS NULL) AS n,
@@ -103,6 +118,8 @@ pub async fn games(state: &AppState) -> anyhow::Result<Vec<GameSummary>> {
                 conflict: r.try_get::<i64, _>("open")? > 0,
                 playing_on: playing.get(&id).cloned(),
                 behind,
+                overwritten: overwritten.contains(&id),
+                mode: game_modes.get(&id).copied().unwrap_or(default_mode),
                 id,
             })
         })
@@ -159,12 +176,17 @@ pub async fn game(state: &AppState, game: &str) -> anyhow::Result<Option<GameDet
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     let playing = playing_by_game(state).await?;
+    let (mode, mode_is_default) = modes::mode_of(state, game).await?;
     Ok(Some(GameDetail {
         id: game.to_string(),
         conflict: !open.is_empty(),
+        locations: reports::locations(state, game, head.as_deref()).await?,
+        alerts: alerts::open(state, Some(game)).await?,
         head,
         versions,
         playing_on: playing.get(game).cloned(),
+        mode,
+        mode_is_default,
     }))
 }
 
@@ -239,5 +261,7 @@ pub async fn overview(state: &AppState) -> anyhow::Result<Overview> {
         last_version_device,
         mirror,
         version: env!("CARGO_PKG_VERSION").to_string(),
+        alerts: alerts::open(state, None).await?.len() as u64,
+        default_mode: modes::default_mode(state).await?,
     })
 }

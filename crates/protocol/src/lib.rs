@@ -19,6 +19,11 @@ macro_rules! shared {
     };
 }
 
+mod settings;
+mod ui;
+pub use settings::*;
+pub use ui::*;
+
 shared! {
     /// Why a version was made. Shown as the label in the timeline.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -68,6 +73,10 @@ shared! {
         #[cfg_attr(feature = "ts", ts(type = "number"))]
         pub blob_size: u64,
         pub files: Vec<FileEntry>,
+        /// Where the Wine prefix of files stored as `<prefix>/…` was, as a portable path
+        /// (e.g. `<root:games>/Hades/prefix`): a hint for finding the prefix on another device.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub prefix: Option<String>,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -174,187 +183,11 @@ shared! {
         Restore { game: String, version: String },
         /// Someone asked in the web UI for a backup of this game now.
         BackUp { game: String },
+        /// The settings for this device changed.
+        Settings { settings: AgentSettings },
         Pong,
     }
 
-    // ---- web UI ----
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct SessionInfo {
-        pub setup_required: bool,
-        pub logged_in: bool,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct PasswordRequest {
-        pub password: String,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Device {
-        pub id: String,
-        pub name: String,
-        pub hostname: String,
-        pub os: String,
-        pub agent_version: String,
-        pub online: bool,
-        pub last_seen: Option<DateTime<Utc>>,
-        pub playing: Option<String>,
-        pub playing_since: Option<DateTime<Utc>>,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub pending_conflicts: u64,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct GameSummary {
-        pub id: String,
-        pub head: Option<HeadSummary>,
-        pub head_device_name: Option<String>,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub versions: u64,
-        pub conflict: bool,
-        pub playing_on: Option<String>,
-        /// Devices whose disk holds an older version than the head.
-        pub behind: Vec<String>,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct VersionRow {
-        pub meta: VersionMeta,
-        pub device_name: String,
-        pub is_head: bool,
-        pub is_branch: bool,
-        pub pinned: bool,
-        pub label: Option<String>,
-        /// Names of the devices whose disk holds this version.
-        pub on_devices: Vec<String>,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct GameDetail {
-        pub id: String,
-        pub head: Option<String>,
-        pub versions: Vec<VersionRow>,
-        pub conflict: bool,
-        pub playing_on: Option<String>,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct VersionPatch {
-        pub pinned: Option<bool>,
-        pub label: Option<String>,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct RestoreRequest {
-        pub device: String,
-        pub version: String,
-    }
-
-    /// Choose the version to continue with after a game was played on two devices.
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct ResolveRequest {
-        pub version: String,
-    }
-
-    /// What happened, stored as its name; the web UI says it in the reader's language.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub enum EventKind {
-        Uploaded,
-        Branched,
-        KeptOwn,
-        Resolved,
-        RestoreRequested,
-        Started,
-        Stopped,
-        Paired,
-        Removed,
-        Imported,
-        /// An event this version does not know (written by a newer one).
-        #[serde(other)]
-        Other,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Activity {
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub id: i64,
-        pub at: DateTime<Utc>,
-        pub device_name: Option<String>,
-        pub game: Option<String>,
-        pub kind: EventKind,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct PairCode {
-        pub code: String,
-        pub expires_at: DateTime<Utc>,
-        pub command: String,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct MirrorStatus {
-        pub enabled: bool,
-        pub remote: Option<String>,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub pending: u64,
-        pub last_ok: Option<DateTime<Utc>>,
-        pub last_error: Option<String>,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Overview {
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub games: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub versions: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub stored_bytes: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub conflicts: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub devices: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub devices_online: u64,
-        pub last_version: Option<HeadSummary>,
-        pub last_version_game: Option<String>,
-        pub last_version_device: Option<String>,
-        pub mirror: MirrorStatus,
-        pub version: String,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct ImportRequest {
-        /// A Ludusavi backup folder on the server, or `remote:path` for rclone.
-        pub source: String,
-    }
-
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct ImportReport {
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub games: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub versions: u64,
-        #[cfg_attr(feature = "ts", ts(type = "number"))]
-        pub skipped: u64,
-        pub errors: Vec<String>,
-    }
 }
 
 /// Header that carries the JSON `VersionMeta` next to the packed body of an upload.
@@ -373,6 +206,8 @@ impl EventKind {
             Self::Paired => "paired",
             Self::Removed => "removed",
             Self::Imported => "imported",
+            Self::Overwritten => "overwritten",
+            Self::ModeChanged => "modeChanged",
             Self::Other => "other",
         }
     }

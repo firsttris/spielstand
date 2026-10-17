@@ -54,6 +54,7 @@ test("an older version can be loaded on a connected PC", async ({ page }) => {
   await login(page, "/games/ELDEN%20RING");
   await expect(page.getByRole("heading", { name: "ELDEN RING", level: 1 })).toBeVisible();
   await expect(page.getByText("4 Version(en)", { exact: false })).toBeVisible();
+  await expect(page.getByText(/Alle PCs spielen danach mit diesem Stand weiter/)).toBeVisible();
   await page.getByRole("button", { name: "Diese Version laden" }).click();
   await expect(page.getByText(/An .+ geschickt/)).toBeVisible();
 });

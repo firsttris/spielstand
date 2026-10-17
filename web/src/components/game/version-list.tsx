@@ -21,7 +21,7 @@ export function VersionList({
         <CardTitle>{m.versions_title()}</CardTitle>
         <CardDescription>{m.versions_text()}</CardDescription>
       </div>
-      <ol className="flex flex-col gap-1">
+      <ol className="flex flex-col gap-1" aria-label={m.versions_title()}>
         {versions.map((row) => {
           const on = row.meta.id === selected;
           return (

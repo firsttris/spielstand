@@ -67,6 +67,8 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # The mirror tests run the real rclone against a local remote
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rclone
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # Includes the property-based sync simulation with SPIELSTAND_SIM_CASES cases
@@ -82,12 +84,16 @@ jobs:
           shellcheck install/install.sh install/test.sh
           cargo build -p spielstand-server -p spielstand-agent --locked
           install/test.sh target/debug
-      # The demo server for the end-to-end tests; a debug build carries the web UI too
-      - run: cargo build -p spielstand-server --example demo --locked
+      # The demo server and the whole chain (server plus two real agents) for the end-to-end
+      # tests; a debug build carries the web UI too
+      - run: cargo build -p spielstand-server --example demo --example stack --locked
       - uses: actions/upload-artifact@v4
         with:
-          name: demo
-          path: target/debug/examples/demo
+          name: e2e-bins
+          path: |
+            target/debug/examples/demo
+            target/debug/examples/stack
+            target/debug/spielstand-agent
           retention-days: 3
 
   playwright-image:
@@ -116,18 +122,26 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: demo
-          path: demo
-      - run: chmod +x ../demo/demo
+          name: e2e-bins
+          path: bins
+      # Artifacts lose the executable bit
+      - run: chmod +x ../bins/examples/demo ../bins/examples/stack ../bins/spielstand-agent
       - run: npm install --global pnpm@10.28.0 && pnpm install --frozen-lockfile
       - run: pnpm e2e
         env:
-          SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/demo/demo
+          SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/bins/examples/demo
+      # The whole chain: browser, server and two agent processes writing real save files
+      - run: pnpm e2e:stack
+        env:
+          SPIELSTAND_STACK_BIN: ${{ github.workspace }}/bins/examples/stack
+          SPIELSTAND_AGENT_BIN: ${{ github.workspace }}/bins/spielstand-agent
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
-          path: web/playwright-report
+          path: |
+            web/playwright-report
+            web/playwright-report-stack
           retention-days: 7
 
   docker:

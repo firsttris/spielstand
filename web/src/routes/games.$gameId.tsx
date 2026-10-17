@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { OverwriteAlerts } from "@/components/game/alerts";
 import { ConflictChooser } from "@/components/game/conflict";
+import { Locations } from "@/components/game/locations";
+import { ModeSelect } from "@/components/game/mode-select";
 import { VersionList } from "@/components/game/version-list";
 import { VersionPanel } from "@/components/game/version-panel";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +54,8 @@ function Game() {
           <div className="flex flex-wrap items-center gap-1.5">
             {g.conflict ? (
               <Badge variant="warning">{m.status_conflict()}</Badge>
+            ) : g.alerts.length > 0 ? (
+              <Badge variant="warning">{m.status_overwritten()}</Badge>
             ) : g.playingOn ? (
               <Badge variant="info">{m.status_playing({ device: g.playingOn })}</Badge>
             ) : head ? (
@@ -65,12 +70,24 @@ function Game() {
         </div>
       </header>
 
+      <OverwriteAlerts alerts={g.alerts} />
       {g.conflict && <ConflictChooser game={g} />}
 
       <div className="flex flex-wrap items-start gap-5">
         <VersionList versions={g.versions} selected={current?.meta.id} onSelect={setSelected} />
-        {current && <VersionPanel key={current.meta.id} game={g} row={current} />}
+        {current && (
+          <VersionPanel
+            key={current.meta.id}
+            game={g}
+            row={current}
+            // Loading a version can make it the head; the panel stays on it rather than jumping.
+            onRestore={() => setSelected(current.meta.id)}
+          />
+        )}
       </div>
+
+      <Locations game={g} />
+      <ModeSelect game={g} />
     </>
   );
 }

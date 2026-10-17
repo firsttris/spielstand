@@ -1,5 +1,6 @@
 //! The Spielstand server: the one place that knows the current state (head) of every game.
 
+pub mod alerts;
 pub mod app;
 pub mod auth;
 pub mod blobs;
@@ -9,11 +10,15 @@ pub mod framing;
 pub mod gc;
 pub mod hub;
 pub mod importer;
+pub mod known;
 pub mod mirror;
+pub mod modes;
 pub mod presence;
 pub mod queries;
+pub mod reports;
 pub mod routes;
 pub mod settings;
+pub mod throttle;
 pub mod versions;
 
 pub use app::{AppState, router};

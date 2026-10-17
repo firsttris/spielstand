@@ -31,7 +31,9 @@ docker compose exec spielstand spielstand-server import-ludusavi gdrive:ludusavi
 Ludusavi stores the original paths, like `/home/tristan/.local/share/…`. Spielstand stores paths
 relative to the home folder or the Steam library (`<home>/…`, `<root:steam>/…`), so a version made on
 one PC loads on another with a different user name or library location. Imported backups are
-converted the same way.
+converted the same way. Saves inside a Wine prefix become `<prefix>/drive_c/users/<user>/…`, so
+they load into the game's prefix on any PC (see
+[Games in Wine prefixes](how-it-works.md#games-in-wine-prefixes)).
 
 ## Ludusavi alongside
 

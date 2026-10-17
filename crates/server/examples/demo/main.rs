@@ -4,6 +4,8 @@
 //! (default 127.0.0.1:8467) with the admin password `spielstand-demo`. Everything lives in a
 //! temporary directory and is gone when the process ends.
 
+mod reports;
+
 use std::path::Path;
 
 use chrono::{DateTime, Duration, Utc};
@@ -25,6 +27,7 @@ struct Demo {
 }
 
 struct Device {
+    id: String,
     token: String,
 }
 
@@ -68,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let _connections = demo.seed().await?;
     println!("demo server ready on http://{listen} (password: {PASSWORD})");
-    tokio::signal::ctrl_c().await?;
+    stopped().await;
     Ok(())
 }
 
@@ -133,10 +136,45 @@ impl Demo {
         for d in [&living, &deck] {
             self.base(d, "Hollow Knight", &hk).await?;
         }
+        // Baldur's Gate 3: the Arbeitszimmer played on, then another program put the older
+        // state from the Wohnzimmer back over it.
         let bg = self
             .upload(&living, "Baldur's Gate 3", "bg3-0", None, h(30), 210)
             .await?;
         self.base(&office, "Baldur's Gate 3", &bg).await?;
+        let newer = self
+            .upload(&office, "Baldur's Gate 3", "bg3-office", Some(&bg), h(20), 150)
+            .await?;
+        self.agent_post(
+            &office,
+            paths::OVERWRITES,
+            serde_json::json!({ "game": "Baldur's Gate 3", "lost": newer, "found": bg }),
+        )
+        .await?;
+        self.base(&office, "Baldur's Gate 3", &bg).await?;
+
+        // Hollow Knight only backed up; game folders and what each device found.
+        self.admin_put(
+            "/api/games/Hollow%20Knight/mode",
+            serde_json::json!({ "mode": "backup" }),
+        )
+        .await?;
+        for (device, folders, report) in [
+            (&living, vec!["~/Games"], reports::living_room()),
+            (
+                &deck,
+                vec!["~/Games", "/run/media/deck/SD/Games"],
+                reports::steam_deck(),
+            ),
+            (&office, vec![], reports::office()),
+        ] {
+            self.admin_put(
+                &format!("/api/devices/{}/settings", device.id),
+                serde_json::json!({ "gameFolders": folders }),
+            )
+            .await?;
+            self.agent_post(device, paths::REPORT, report).await?;
+        }
 
         // Wohnzimmer and Steam Deck stay connected; the Arbeitszimmer is switched off.
         Ok(vec![self.connect(&living).await?, self.connect(&deck).await?])
@@ -169,7 +207,10 @@ impl Demo {
             .error_for_status()?
             .json()
             .await?;
-        Ok(Device { token: res.token })
+        Ok(Device {
+            id: res.device_id,
+            token: res.token,
+        })
     }
 
     async fn upload(
@@ -192,6 +233,29 @@ impl Demo {
             .await?
             .error_for_status()?;
         Ok(meta.id)
+    }
+
+    async fn agent_post(&self, device: &Device, path: &str, body: serde_json::Value) -> anyhow::Result<()> {
+        self.http
+            .post(format!("{}{path}", self.url))
+            .bearer_auth(&device.token)
+            .json(&body)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    async fn admin_put(&self, path: &str, body: serde_json::Value) -> anyhow::Result<()> {
+        self.http
+            .put(format!("{}{path}", self.url))
+            .header("cookie", &self.cookie)
+            .header("x-spielstand-csrf", "1")
+            .json(&body)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
     }
 
     async fn base(&self, device: &Device, game: &str, version: &str) -> anyhow::Result<()> {
@@ -274,6 +338,17 @@ fn version(
         blob_sha256: packed.blob_sha256,
         blob_size: packed.blob_size,
         files: packed.files,
+        prefix: None,
     };
     Ok((meta, blob))
+}
+
+/// Ctrl-C, or SIGTERM from whatever started this (Playwright, CI).
+async fn stopped() {
+    let mut term =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("SIGTERM handler");
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = term.recv() => {}
+    }
 }

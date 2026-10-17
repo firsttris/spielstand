@@ -28,6 +28,19 @@ test("versions of a game", async ({ page }) => {
   await page.screenshot({ path: `${dir}/versions.png`, fullPage: true });
 });
 
+test("where each device keeps the save", async ({ page }) => {
+  await page.goto("/games/Stardew%20Valley");
+  await expect(page.getByRole("heading", { name: "On your devices" })).toBeVisible();
+  await page.getByRole("heading", { name: "On your devices" }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${dir}/locations.png`, fullPage: true });
+});
+
+test("an older save put back", async ({ page }) => {
+  await page.goto("/games/Baldur's%20Gate%203");
+  await expect(page.getByRole("alert", { name: "Older save put back" })).toBeVisible();
+  await page.screenshot({ path: `${dir}/overwritten.png` });
+});
+
 test("devices", async ({ page }) => {
   await page.goto("/devices");
   await expect(page.getByRole("region", { name: "Steam Deck" })).toBeVisible();

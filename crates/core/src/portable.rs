@@ -14,7 +14,11 @@ pub struct Anchors {
     pub roots: Vec<(String, PathBuf)>,
 }
 
-const ANCHORED_STORES: &[&str] = &["steam", "heroic", "lutris", "legendary", "gog", "epic"];
+const ANCHORED_STORES: &[&str] = &["steam", "heroic", "lutris", "legendary", "gog", "epic", "games"];
+
+/// Saves inside a Wine prefix are stored relative to the prefix: `<prefix>/drive_c/…`. Which
+/// folder that is on another device is decided there, for that game.
+pub const PREFIX: &str = "<prefix>";
 
 pub fn is_anchored_store(store: &str) -> bool {
     ANCHORED_STORES.contains(&store)
@@ -75,12 +79,70 @@ pub fn from_portable(portable: &str, anchors: &Anchors) -> Option<PathBuf> {
     Some(PathBuf::from(portable))
 }
 
-/// Paths may only be written below the device's home or a known root.
-pub fn is_allowed_target(path: &Path, anchors: &Anchors) -> bool {
+/// Paths may only be written below the device's home, a known root or the game's prefix.
+pub fn is_allowed_target(path: &Path, anchors: &Anchors, prefix: Option<&Path>) -> bool {
     let normal = !path
         .components()
         .any(|c| matches!(c, std::path::Component::ParentDir));
-    normal && (path.starts_with(&anchors.home) || anchors.roots.iter().any(|(_, r)| path.starts_with(r)))
+    normal
+        && (path.starts_with(&anchors.home)
+            || anchors.roots.iter().any(|(_, r)| path.starts_with(r))
+            || prefix.is_some_and(|p| path.starts_with(p)))
+}
+
+/// Stands for the Wine profile in `drive_c/users/<user>/…`: `steamuser` under Proton and
+/// Prefixr, the Linux user name under plain Wine. The same save has the same path, and so the
+/// same content hash, on every device.
+pub const WINE_USER: &str = "<user>";
+
+/// `drive_c/users/<name>/…` → `drive_c/users/<user>/…`; `Public` is the same everywhere.
+pub fn normalize_profile(rest: &str) -> String {
+    let mut parts = rest.splitn(4, '/');
+    match (parts.next(), parts.next(), parts.next(), parts.next()) {
+        (Some("drive_c"), Some("users"), Some(user), tail) if user != "Public" => {
+            join(&format!("drive_c/users/{WINE_USER}"), tail.unwrap_or(""))
+        }
+        _ => rest.to_string(),
+    }
+}
+
+/// `<prefix>/rel` for a file inside `prefix`, with the profile folder normalised.
+pub fn to_portable_in_prefix(path: &Path, prefix: &Path) -> Option<String> {
+    rel(path, prefix).map(|rest| join(PREFIX, &normalize_profile(&rest)))
+}
+
+/// Splits a path inside a Wine prefix at its `drive_c`: the prefix folder and the rest. Works on
+/// paths of other machines too (a Ludusavi backup's original paths).
+pub fn split_at_drive_c(path: &str) -> Option<(&str, &str)> {
+    let at = path.find("/drive_c/")?;
+    Some((&path[..at], &path[at + 1..]))
+}
+
+pub fn is_in_prefix(portable: &str) -> bool {
+    portable == PREFIX || portable.starts_with("<prefix>/")
+}
+
+/// Where `<prefix>/…` lands in `prefix` on this device. `users` are the profile folders in the
+/// prefix's `drive_c/users`; `<user>` becomes `steamuser` if it is there, else the only other
+/// profile, else `fallback` (the Linux user name, which plain Wine would create). Several
+/// profiles and no `steamuser`: `None`, a question rather than a guess.
+pub fn resolve_in_prefix(portable: &str, prefix: &Path, users: &[String], fallback: &str) -> Option<PathBuf> {
+    let rest = portable.strip_prefix(PREFIX)?.trim_start_matches('/');
+    let marker = format!("drive_c/users/{WINE_USER}");
+    let Some(tail) = rest.strip_prefix(&marker) else {
+        return Some(prefix.join(rest));
+    };
+    let profiles: Vec<&String> = users.iter().filter(|u| *u != "Public").collect();
+    let user = if profiles.iter().any(|u| *u == "steamuser") {
+        "steamuser"
+    } else {
+        match profiles.as_slice() {
+            [] => fallback,
+            [only] => only.as_str(),
+            _ => return None,
+        }
+    };
+    Some(prefix.join(format!("drive_c/users/{user}{tail}")))
 }
 
 #[cfg(test)]
@@ -136,9 +198,88 @@ mod tests {
     #[test]
     fn targets_stay_inside_known_places() {
         let a = anchors("/home/tris", "/mnt/games/Steam");
-        assert!(is_allowed_target(Path::new("/home/tris/x"), &a));
-        assert!(is_allowed_target(Path::new("/mnt/games/Steam/x"), &a));
-        assert!(!is_allowed_target(Path::new("/etc/passwd"), &a));
-        assert!(!is_allowed_target(Path::new("/home/tris/../../etc/passwd"), &a));
+        assert!(is_allowed_target(Path::new("/home/tris/x"), &a, None));
+        assert!(is_allowed_target(Path::new("/mnt/games/Steam/x"), &a, None));
+        assert!(!is_allowed_target(Path::new("/etc/passwd"), &a, None));
+        assert!(!is_allowed_target(
+            Path::new("/home/tris/../../etc/passwd"),
+            &a,
+            None
+        ));
+        let sd = Path::new("/run/media/deck/SD/Games/Hades/prefix");
+        assert!(is_allowed_target(&sd.join("drive_c/x"), &a, Some(sd)));
+        assert!(!is_allowed_target(
+            Path::new("/run/media/deck/SD/other"),
+            &a,
+            Some(sd)
+        ));
+    }
+
+    fn users(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| n.to_string()).collect()
+    }
+
+    #[test]
+    fn a_path_splits_at_drive_c() {
+        assert_eq!(
+            split_at_drive_c("/home/t/Games/Hades/prefix/drive_c/users/steamuser/x"),
+            Some(("/home/t/Games/Hades/prefix", "drive_c/users/steamuser/x"))
+        );
+        assert_eq!(split_at_drive_c("/home/t/.config/x"), None);
+    }
+
+    #[test]
+    fn saves_in_a_prefix_follow_the_game_to_another_folder() {
+        let desktop = Path::new("/home/tris/Games/Hades/prefix");
+        let deck = Path::new("/run/media/deck/SD/Games/Hades/prefix");
+        let file = desktop.join("drive_c/users/steamuser/AppData/Roaming/Hades/save.sav");
+        let p = to_portable_in_prefix(&file, desktop).unwrap();
+        assert_eq!(p, "<prefix>/drive_c/users/<user>/AppData/Roaming/Hades/save.sav");
+        assert!(is_in_prefix(&p));
+        assert_eq!(
+            resolve_in_prefix(&p, deck, &users(&["steamuser", "deck"]), "deck").unwrap(),
+            deck.join("drive_c/users/steamuser/AppData/Roaming/Hades/save.sav")
+        );
+    }
+
+    #[test]
+    fn the_wine_profile_is_normalised_and_mapped_to_the_one_on_this_device() {
+        assert_eq!(
+            normalize_profile("drive_c/users/tristan/Documents/G/s.dat"),
+            "drive_c/users/<user>/Documents/G/s.dat"
+        );
+        assert_eq!(
+            normalize_profile("drive_c/users/Public/Documents/x"),
+            "drive_c/users/Public/Documents/x"
+        );
+        assert_eq!(normalize_profile("drive_c/Games/x"), "drive_c/Games/x");
+
+        let deck = Path::new("/home/deck/Games/G/pfx");
+        let p = "<prefix>/drive_c/users/<user>/Documents/G/s.dat";
+        let at = |names: &[&str]| resolve_in_prefix(p, deck, &users(names), "deck");
+        assert_eq!(
+            at(&["Public", "deck"]),
+            Some(deck.join("drive_c/users/deck/Documents/G/s.dat"))
+        );
+        assert_eq!(
+            at(&["Public", "deck", "steamuser"]),
+            Some(deck.join("drive_c/users/steamuser/Documents/G/s.dat")),
+            "steamuser wins: Proton and Prefixr profiles"
+        );
+        assert_eq!(
+            at(&[]),
+            Some(deck.join("drive_c/users/deck/Documents/G/s.dat")),
+            "a new prefix"
+        );
+        assert_eq!(at(&["a", "b"]), None, "two candidates: no guessing");
+        assert_eq!(
+            resolve_in_prefix(
+                "<prefix>/drive_c/users/Public/Documents/x",
+                deck,
+                &users(&["deck"]),
+                "deck"
+            ),
+            Some(deck.join("drive_c/users/Public/Documents/x"))
+        );
     }
 }

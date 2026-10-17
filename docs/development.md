@@ -24,6 +24,14 @@ docker/       the image: server, agent binaries, rclone
 
 - **The decision** (`core/src/decide.rs`) is a pure function of the PC's base, the disk and the
   server's current state; everything around it only collects these and carries out the result.
+- **The plan** (`core/src/plan.rs`) turns the decision and the game's mode into what to do: adopt a
+  known state, report an overwrite, upload, load. In *back up only* it never writes; a property
+  test holds it to that.
+- **Wine prefixes** (`core/src/portable.rs`, `agent/src/prefixes.rs`): saves in a prefix are stored
+  as `<prefix>/drive_c/users/<user>/…` and resolved into this PC's prefix when written.
+- **The agent** (`agent/src/agent.rs`) holds what a PC knows: settings from the server, where saves
+  are, which games are installed here (`games_to_follow`). `sync.rs` has the flows, `watch.rs` the
+  save-folder watcher, `report.rs` what goes to the web UI, `foreign.rs` Syncthing and Stellwerk.
 - **Uploads** (`server/src/versions.rs`) move the current state with
   `UPDATE games SET head = ? WHERE id = ? AND head IS ?`; anything else becomes a branch.
 - **Writing saves** (`agent/src/disk.rs`) snapshots first, stages, verifies, renames and rolls back.
@@ -46,6 +54,7 @@ cargo test -p spielstand-protocol --features ts
 | `cargo test -p spielstand-agent --test simulation` | random histories of PCs, outages and restores; `SPIELSTAND_SIM_CASES` sets how many |
 | `cd web && pnpm test` | unit tests (Vitest) |
 | `cd web && pnpm e2e` | Playwright against the demo server |
+| `cd web && pnpm e2e:stack` | Playwright against the whole chain: a server and two real agent processes with their own homes and Wine prefixes (`cargo build -p spielstand-agent` first) |
 | `install/test.sh target/debug` | the one-line install against a fresh server (as a normal user) |
 
 The simulation checks the central promise: whatever happens, every state a game's saves were ever
@@ -57,9 +66,21 @@ in on any PC is still a version. CI runs 64 histories, a nightly job 3000.
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e
+cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e && pnpm e2e:stack
 mkdocs build --strict
 ```
+
+## The whole chain by hand
+
+```bash
+cargo build -p spielstand-agent
+cargo run -p spielstand-server --example stack
+```
+
+starts a server on `:8469` (password `spielstand-stack`) and two PCs, *Desktop* and *Steam Deck*,
+each a real agent process with its own home folder, Prefixr library and Hades prefix. `GET
+http://127.0.0.1:8470/pcs` shows each PC's save file; `POST /pcs/{name}/stop` and `/start` switch a
+PC off and on. Edit a save file and watch it arrive on the other PC.
 
 ## Screenshots
 

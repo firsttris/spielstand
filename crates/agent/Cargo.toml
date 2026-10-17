@@ -33,6 +33,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 futures = "0.3"
 rayon = "1"
 sysinfo = "0.36"
+notify = "8"
 notify-rust = { version = "4", default-features = false, features = ["z"] }
 toml = "0.8"
 dirs = "5"

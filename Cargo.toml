@@ -32,3 +32,10 @@ ts-rs = { version = "11", features = ["serde-json-impl", "chrono-impl", "no-serd
 [profile.release]
 lto = "thin"
 strip = true
+
+# Line tables are enough for backtraces; full debug info made every test binary huge.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

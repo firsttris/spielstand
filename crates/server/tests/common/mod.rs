@@ -156,6 +156,7 @@ pub fn version(
         blob_sha256: packed.blob_sha256,
         blob_size: packed.blob_size,
         files: packed.files,
+        prefix: None,
     };
     (meta, blob)
 }

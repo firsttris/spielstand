@@ -6,6 +6,10 @@ pub const VERSIONS: &str = "/api/agent/versions";
 pub const BASES: &str = "/api/agent/bases";
 pub const WS: &str = "/api/agent/ws";
 pub const PRESENCE: &str = "/api/agent/presence";
+pub const KNOWN: &str = "/api/agent/known";
+pub const OVERWRITES: &str = "/api/agent/overwrites";
+pub const SETTINGS: &str = "/api/agent/settings";
+pub const REPORT: &str = "/api/agent/report";
 
 pub fn version_blob(id: &str) -> String {
     format!("{VERSIONS}/{id}/blob")

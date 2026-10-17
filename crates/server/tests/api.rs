@@ -162,6 +162,11 @@ async fn presence_is_seen_by_other_devices() {
     req.headers_mut()
         .insert("authorization", format!("Bearer {}", a.token).parse().unwrap());
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+    let hello = ws.next().await.unwrap().unwrap();
+    assert!(
+        hello.to_text().unwrap().contains("\"type\":\"settings\""),
+        "settings come first"
+    );
     ws.send(Message::Text(r#"{"type":"playing","game":"Hades II"}"#.into()))
         .await
         .unwrap();
@@ -203,6 +208,11 @@ async fn new_heads_are_pushed_to_other_devices() {
     req.headers_mut()
         .insert("authorization", format!("Bearer {}", b.token).parse().unwrap());
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+    let hello = ws.next().await.unwrap().unwrap();
+    assert!(
+        hello.to_text().unwrap().contains("\"type\":\"settings\""),
+        "settings come first"
+    );
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     let (v1, blob1) = version(s.dir.path(), "G", "x", None);
     s.upload_ok(&a, &v1, &blob1).await;
@@ -256,4 +266,37 @@ async fn install_script_points_at_this_server() {
     assert!(script.starts_with("#!/bin/sh"));
     assert!(script.contains(&format!("SERVER=\"{}\"", s.url)));
     assert!(!script.contains("__SPIELSTAND_"));
+}
+
+#[tokio::test]
+async fn guessing_passwords_and_pairing_codes_is_slowed_down() {
+    let s = start().await;
+    let login = |password: &'static str| {
+        let (http, url) = (s.http.clone(), format!("{}/api/login", s.url));
+        async move {
+            http.post(url)
+                .json(&serde_json::json!({ "password": password }))
+                .send()
+                .await
+                .unwrap()
+                .status()
+        }
+    };
+    let guesses = futures::future::join_all((0..12).map(|_| login("wrong guess"))).await;
+    assert!(guesses.iter().any(|s| *s == 429), "{guesses:?}");
+    assert_eq!(login("correct horse").await, 429, "even the right one waits now");
+
+    let pair = |code: String| {
+        let (http, url) = (s.http.clone(), format!("{}{}", s.url, paths::PAIR));
+        async move {
+            http.post(url)
+                .json(&serde_json::json!({"code": code, "name": "x", "hostname": "x", "os": "linux", "agentVersion": "t"}))
+                .send()
+                .await
+                .unwrap()
+                .status()
+        }
+    };
+    let tries = futures::future::join_all((0..25).map(|n| pair(format!("AAA-{n:03}")))).await;
+    assert_eq!(tries.iter().filter(|s| **s == 429).count(), 5, "{tries:?}");
 }
