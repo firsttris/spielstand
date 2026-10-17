@@ -8,7 +8,10 @@
       "!src/bindings",
       "!dist",
       "!test-results",
-      "!playwright-report"
+      "!playwright-report",
+      "!project.inlang/cache",
+      "!project.inlang/.meta.json",
+      "!project.inlang/.lix"
     ]
   },
   "formatter": {

@@ -6,19 +6,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  tested:
-    uses: firsttris/workflows/.github/workflows/tested-on-main.yml@v1
-    permissions:
-      actions: read
-      contents: read
-
+  # Switch to tested-on-main.yml once it is part of firsttris/workflows@v1
   checks:
-    needs: tested
-    if: needs.tested.outputs.tested != 'true'
     uses: ./.github/workflows/ci.yml
-    permissions:
-      contents: read
-      packages: write
 
   # The agent for both architectures, attached to the GitHub release. The image carries the one
   # of its own architecture; the server sends the other to the release download.
@@ -58,9 +48,7 @@ jobs:
           path: agents/*
 
   docker:
-    needs: [tested, checks, agents]
-    # The checks either passed or were not needed
-    if: ${{ !cancelled() && needs.tested.result == 'success' && needs.checks.result != 'failure' && needs.agents.result == 'success' }}
+    needs: [checks, agents]
     uses: firsttris/workflows/.github/workflows/docker-release.yml@v1
     with:
       image: tristanteu/spielstand

@@ -134,15 +134,17 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    permissions:
-      contents: read
-      packages: write   # keeps the cache
     steps:
       - uses: actions/checkout@v4
-      - uses: firsttris/workflows/actions/docker-build@v1
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
         with:
-          dockerfile: docker/Dockerfile
+          context: .
+          file: docker/Dockerfile
           tags: spielstand:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: The image starts and serves the UI, install.sh and the agent
         run: |
           docker run -d --name spielstand -p 8467:8467 spielstand:ci
