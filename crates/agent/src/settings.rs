@@ -1,13 +1,16 @@
 //! What the server decides for this device (modes, game folders, prefix choices), kept on disk
 //! so an agent that starts without the server still knows it, and where saves can be found.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use spielstand_protocol::{AgentSettings, SaveMode};
 
 use crate::{
     config::Dirs,
-    engine::Scanner,
+    engine::{Scanner, normalize_title},
     prefixes::{self, PrefixrGame},
 };
 
@@ -96,10 +99,66 @@ pub fn wine_prefixes(settings: &AgentSettings, sources: &Sources, home: &Path) -
     found
 }
 
-/// Points the scanner at the prefixes and game folders of `settings`.
+/// The prefix chosen for `game` in the web UI, if it is a prefix on this device.
+pub fn chosen_prefix(settings: &AgentSettings, game: &str, home: &Path) -> Option<PathBuf> {
+    settings
+        .prefix_choices
+        .get(game)
+        .map(|p| prefixes::expand_home(p, home))
+        .filter(|p| prefixes::is_wine_prefix(p))
+}
+
+/// The prefixes of the Prefixr games that are `game`: by the manifest's title, or the same
+/// name written differently.
+pub fn prefixr_prefixes(games: &[PrefixrGame], scanner: &dyn Scanner, game: &str) -> Vec<PathBuf> {
+    let wanted = normalize_title(game);
+    games
+        .iter()
+        .filter(|g| {
+            scanner.find_title(&g.name).as_deref() == Some(game) || normalize_title(&g.name) == wanted
+        })
+        .map(|g| g.prefix.clone())
+        .filter(|p| prefixes::is_wine_prefix(p))
+        .collect()
+}
+
+/// Each game's assigned prefix (see [`prefixes::assigned`]), by normalized title.
+fn own_prefixes(
+    scanner: &dyn Scanner,
+    settings: &AgentSettings,
+    sources: &Sources,
+    home: &Path,
+) -> BTreeMap<String, PathBuf> {
+    let library = sources.prefixr_games().unwrap_or_default();
+    let games: std::collections::BTreeSet<String> = settings
+        .prefix_choices
+        .keys()
+        .cloned()
+        .chain(
+            library
+                .iter()
+                .map(|g| scanner.find_title(&g.name).unwrap_or_else(|| g.name.clone())),
+        )
+        .collect();
+    games
+        .into_iter()
+        .filter_map(|game| {
+            let own = prefixes::assigned(
+                chosen_prefix(settings, &game, home),
+                &prefixr_prefixes(&library, scanner, &game),
+            )?;
+            Some((normalize_title(&game), own))
+        })
+        .collect()
+}
+
+/// Points the scanner at the prefixes and game folders of `settings`, and tells it which
+/// prefix is each game's own.
 pub fn configure(scanner: &dyn Scanner, settings: &AgentSettings, sources: &Sources, home: &Path) {
+    let own = own_prefixes(scanner, settings, sources, home);
     scanner.configure(
         wine_prefixes(settings, sources, home),
         game_folders(settings, home),
+        own,
     );
 }

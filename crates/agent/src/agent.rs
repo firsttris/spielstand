@@ -209,30 +209,18 @@ impl Agent {
         let current = disk::read(self.scanner.as_ref(), game)
             .ok()
             .and_then(|d| d.prefix);
-        let chosen = self
-            .settings()
-            .prefix_choices
-            .get(game)
-            .map(|p| prefixes::expand_home(p, &self.home()))
-            .and_then(existing);
+        let chosen = settings::chosen_prefix(&self.settings(), game, &self.home());
         let anchors = self.scanner.anchors();
         let hinted = meta
             .prefix
             .as_deref()
             .and_then(|hint| portable::from_portable(hint, &anchors))
             .and_then(existing);
-        let wanted = normalize_title(game);
-        let prefixr = self
-            .sources
-            .prefixr_games()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|g| {
-                self.scanner.find_title(&g.name).as_deref() == Some(game)
-                    || normalize_title(&g.name) == wanted
-            })
-            .filter_map(|g| existing(g.prefix))
-            .collect();
+        let prefixr = settings::prefixr_prefixes(
+            &self.sources.prefixr_games().unwrap_or_default(),
+            self.scanner.as_ref(),
+            game,
+        );
         prefixes::choose(prefixes::Candidates {
             current,
             chosen,

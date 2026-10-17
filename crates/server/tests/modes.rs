@@ -147,6 +147,42 @@ async fn an_overwrite_alert_shows_until_the_lost_state_is_back_or_dismissed() {
     assert_eq!(wrong.status(), 400);
 }
 
+/// The deck lost v2, then caught up past it to v3 (the desktop played on): it holds a newer
+/// state than the lost one, so the alert goes, and its button can no longer roll every PC back.
+#[tokio::test]
+async fn an_overwrite_alert_settles_once_the_device_holds_a_newer_state() {
+    let s = start().await;
+    let a = s.pair("desktop").await;
+    let deck = s.pair("deck").await;
+    let (v1, b1) = version(s.dir.path(), GAME, "one", None);
+    s.upload_ok(&a, &v1, &b1).await;
+    let (v2, b2) = version(s.dir.path(), GAME, "two", Some(&v1.id));
+    s.upload_ok(&a, &v2, &b2).await;
+    let (v3, b3) = version(s.dir.path(), GAME, "three", Some(&v2.id));
+    s.upload_ok(&a, &v3, &b3).await;
+    s.agent(&deck, Method::POST, paths::OVERWRITES)
+        .json(&json!({ "game": GAME, "lost": v2.id, "found": v1.id }))
+        .send()
+        .await
+        .unwrap();
+    let base = |version: String| {
+        s.agent(&deck, Method::POST, paths::BASES)
+            .json(&json!({ "game": GAME, "version": version }))
+            .send()
+    };
+    let open = || async {
+        get(&s, "/api/games/Hades").await["alerts"]
+            .as_array()
+            .unwrap()
+            .len()
+    };
+
+    assert!(base(v1.id.clone()).await.unwrap().status().is_success());
+    assert_eq!(open().await, 1, "still the older state");
+    assert!(base(v3.id.clone()).await.unwrap().status().is_success());
+    assert_eq!(open().await, 0, "v3 is built on the lost v2");
+}
+
 #[tokio::test]
 async fn modes_and_folders_are_set_in_the_web_ui_and_pushed_to_agents() {
     let s = start().await;
@@ -349,7 +385,7 @@ async fn the_mirror_works_through_rclone() {
 }
 
 #[tokio::test]
-async fn loading_a_version_continues_from_it_in_sync_mode_only() {
+async fn loading_a_version_continues_from_it_in_both_modes() {
     let s = start().await;
     let a = s.pair("desktop").await;
     let (v1, b1) = version(s.dir.path(), GAME, "one", None);
@@ -394,7 +430,7 @@ async fn loading_a_version_continues_from_it_in_sync_mode_only() {
     assert!(restore(v2.id.clone()).await.unwrap().status().is_success());
     assert_eq!(
         get(&s, "/api/games/Hades").await["head"],
-        v1.id,
-        "backup: only the device"
+        v2.id,
+        "backup: the device's next upload builds on v2, so v2 is the current state"
     );
 }

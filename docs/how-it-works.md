@@ -54,8 +54,10 @@ PC's row.
 *Load this version* on a game's page sends the version to a connected PC. The PC first backs up what
 it has, then writes the version.
 
-- In *Synchronize* mode loading means *continue from here*: the loaded version becomes the current
-  state, and every other PC follows it, each backing up its own state first.
+Loading means *continue from here*: the loaded version becomes the current state, so what you
+play next builds on it.
+
+- In *Synchronize* mode every other PC follows it, each backing up its own state first.
 - In *Back up only* mode only the chosen PC changes.
 
 ## Older saves over newer ones
@@ -71,7 +73,7 @@ descended from what the PC last had. It then:
   the current state again.
 
 The alert offers to load the newer state back onto that PC, or to dismiss it. It goes away on its
-own once the PC holds the newer state again.
+own once the PC holds the newer state again, or a state built on it.
 
 ![An older save over a newer one](screenshots/overwritten.png)
 
@@ -85,12 +87,14 @@ the profile `steamuser` is used, otherwise the only profile there is.
 
 Which prefix belongs to a game on a PC is found in this order:
 
-1. the prefix the saves are in right now,
-2. the prefix chosen for that PC on the game's page,
-3. the prefix the version came from, if the same path exists here,
-4. the one [Prefixr](agent.md#where-it-looks-for-saves) game of that name.
+1. the prefix chosen for that PC on the game's page,
+2. the one [Prefixr](agent.md#where-it-looks-for-saves) game of that name,
+3. the prefix the saves are in right now,
+4. the prefix the version came from, if the same path exists here.
 
-If several prefixes could fit, nothing is written; the game's page asks which one it is.
+If several prefixes could fit, nothing is written; the game's page asks which one it is. Once the
+game's own prefix (1 or 2) holds saves, saves of the game in other prefixes, such as an old prefix
+it moved out of, are left alone: they are neither backed up as the game's state nor overwritten.
 
 ![Where each PC keeps a game's save](screenshots/locations.png)
 

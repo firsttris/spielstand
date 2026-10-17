@@ -125,11 +125,23 @@ pub struct Candidates {
     pub prefixr: Vec<PathBuf>,
 }
 
-/// Picks the prefix for a game, in the order: where its saves are, the choice in the web UI,
-/// the version's own place, the single Prefixr game with that title. More than one Prefixr
-/// candidate and nothing else to go by is a question for the web UI, never a guess.
+/// The prefix a game is assigned to: the choice in the web UI, else the one prefix Prefixr
+/// has for that title. An assignment beats where saves happen to lie: an old prefix the game
+/// moved out of can still hold an old save.
+pub fn assigned(chosen: Option<PathBuf>, prefixr: &[PathBuf]) -> Option<PathBuf> {
+    chosen.or_else(|| {
+        let mut distinct = prefixr.to_vec();
+        distinct.sort();
+        distinct.dedup();
+        (distinct.len() == 1).then(|| distinct.remove(0))
+    })
+}
+
+/// Picks the prefix for a game, in the order: its assigned prefix (see [`assigned`]), where its
+/// saves are, the version's own place. More than one Prefixr candidate and nothing else to go
+/// by is a question for the web UI, never a guess.
 pub fn choose(c: Candidates) -> Result<PathBuf, GameProblem> {
-    if let Some(p) = c.current.or(c.chosen).or(c.hinted) {
+    if let Some(p) = assigned(c.chosen, &c.prefixr).or(c.current).or(c.hinted) {
         return Ok(p);
     }
     let mut prefixr = c.prefixr;
@@ -137,7 +149,6 @@ pub fn choose(c: Candidates) -> Result<PathBuf, GameProblem> {
     prefixr.dedup();
     match prefixr.len() {
         0 => Err(GameProblem::NoPrefix),
-        1 => Ok(prefixr.remove(0)),
         _ => Err(GameProblem::SeveralPrefixes {
             candidates: prefixr.iter().map(|p| p.display().to_string()).collect(),
         }),
@@ -221,18 +232,29 @@ mod tests {
             hinted: p("/hinted"),
             prefixr: vec!["/prefixr".into()],
         };
-        assert_eq!(choose(all.clone()), Ok("/current".into()));
+        assert_eq!(choose(all.clone()), Ok("/chosen".into()));
         assert_eq!(
             choose(Candidates {
-                current: None,
+                chosen: None,
                 ..all.clone()
             }),
-            Ok("/chosen".into())
+            Ok("/prefixr".into()),
+            "the game's own Prefixr prefix, not an old one that still holds a save"
+        );
+        assert_eq!(
+            choose(Candidates {
+                chosen: None,
+                prefixr: vec!["/a".into(), "/b".into()],
+                ..all.clone()
+            }),
+            Ok("/current".into()),
+            "Prefixr is unsure: where the saves are"
         );
         assert_eq!(
             choose(Candidates {
                 current: None,
                 chosen: None,
+                prefixr: vec![],
                 ..all.clone()
             }),
             Ok("/hinted".into())

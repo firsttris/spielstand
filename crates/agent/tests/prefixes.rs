@@ -300,3 +300,57 @@ async fn stellwerk_gets_the_save_files_of_games_spielstand_syncs() {
         "a game in backup mode stays with Stellwerk"
     );
 }
+
+/// Hades moved to a new prefix; the old one, still in Prefixr's library under another entry,
+/// holds an old save. The game's own prefix decides, not the number or order of save files:
+/// the deck gets the current run, and the desktop's old prefix is neither backed up as Hades
+/// nor touched.
+#[tokio::test]
+async fn an_old_prefix_with_an_old_save_does_not_win_over_the_games_own() {
+    let s = server().await;
+    let mut old = PathBuf::new();
+    let mut own = PathBuf::new();
+    let desktop = pc_with(&s, "desktop", |home| {
+        own = home.join("Games/Hades/prefix");
+        // Sorts after the own prefix: a tie used to pick it.
+        old = home.join("Games/Old/Hades/prefix");
+        make_prefix(&own, &["steamuser"]);
+        make_prefix(&old, &["steamuser"]);
+        let config = prefixr_config(
+            home,
+            &[(HADES, own.clone()), ("Hades (before the move)", old.clone())],
+        );
+        (
+            scanner(home),
+            Sources {
+                prefixr_config: Some(config),
+                stellwerk_dir: None,
+            },
+        )
+    })
+    .await;
+    let (deck, deck_prefix) = prefixr_pc(&s, "deck", "sd/Games/Hades/prefix", &["steamuser"], false).await;
+    write(&old, "steamuser", "old run, months ago");
+    write(&own, "steamuser", "current run");
+
+    desktop.agent.after_session(HADES, 60).await.unwrap();
+    let contents = common::server_contents(&s, HADES).await;
+    assert!(
+        !contents.contains(&"old run, months ago".to_string()),
+        "{contents:?}"
+    );
+    let outcome = deck.agent.prepare_launch(HADES).await;
+    assert!(matches!(outcome, Outcome::Loaded(_)), "{outcome:?}");
+    assert_eq!(read(&deck_prefix, "steamuser").as_deref(), Some("current run"));
+
+    write(&deck_prefix, "steamuser", "played on the deck");
+    deck.agent.after_session(HADES, 60).await.unwrap();
+    let outcome = desktop.agent.prepare_launch(HADES).await;
+    assert!(matches!(outcome, Outcome::Loaded(_)), "{outcome:?}");
+    assert_eq!(read(&own, "steamuser").as_deref(), Some("played on the deck"));
+    assert_eq!(
+        read(&old, "steamuser").as_deref(),
+        Some("old run, months ago"),
+        "the old prefix is left alone"
+    );
+}

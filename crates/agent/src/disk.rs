@@ -44,11 +44,23 @@ pub fn is_staging(path: &Path) -> bool {
         .is_some_and(|n| n.to_string_lossy().ends_with(STAGING))
 }
 
-/// The save files of `game` now, without the agent's own staging files.
+/// The save files of `game` now, without the agent's own staging files. Once the game's own
+/// prefix holds saves, saves in other prefixes are not the game's: an old prefix it moved out
+/// of, or another install. They are neither backed up as the game's state nor touched.
 fn save_files(scanner: &dyn Scanner, game: &str) -> Vec<PathBuf> {
     let mut files = scanner.save_files(game);
     files.retain(|f| !is_staging(f));
+    if let Some(own) = scanner.own_prefix(game)
+        && files.iter().any(|f| in_prefix(f, &own))
+    {
+        files.retain(|f| prefixes::prefix_of(f).is_none() || in_prefix(f, &own));
+    }
     files
+}
+
+/// `file` lies in `prefix` (compared by real path: a prefix may be reached through a link).
+fn in_prefix(file: &Path, prefix: &Path) -> bool {
+    prefixes::prefix_of(file).is_some_and(|p| real_path(&p) == real_path(prefix))
 }
 
 /// The real path of `path`; for a file that does not exist yet, its folder's real path.
@@ -263,10 +275,19 @@ pub fn write(
         Utc::now().format("%Y%m%dT%H%M%S"),
         spielstand_core::slug(&meta.game)
     ));
+    // Writing into the game's own prefix leaves saves in other prefixes alone: once the own
+    // prefix holds the new state, they no longer count as the game's (see `save_files`).
+    let own_target = prefix.filter(|p| {
+        scanner
+            .own_prefix(&meta.game)
+            .is_some_and(|own| real_path(&own) == real_path(p))
+    });
+    let elsewhere =
+        |f: &Path| own_target.is_some_and(|own| prefixes::prefix_of(f).is_some() && !in_prefix(f, own));
     let mut moved = BTreeSet::new();
     for extra in save_files(scanner, &meta.game) {
         let real = real_path(&extra);
-        if keep.contains(&real) || !moved.insert(real.clone()) {
+        if keep.contains(&real) || elsewhere(&extra) || !moved.insert(real.clone()) {
             continue;
         }
         std::fs::create_dir_all(&trash)?;

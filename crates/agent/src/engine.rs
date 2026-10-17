@@ -35,9 +35,17 @@ pub trait Scanner: Send + Sync {
     fn installed_games(&self) -> std::collections::BTreeSet<String> {
         self.install_dirs().into_iter().map(|(g, _)| g).collect()
     }
-    /// Wine prefixes to look into besides the ones launchers know (Prefixr, game folders), and
-    /// the game folders, which anchor portable paths as `<root:games>`.
-    fn configure(&self, wine_prefixes: Vec<PathBuf>, game_folders: Vec<PathBuf>);
+    /// Wine prefixes to look into besides the ones launchers know (Prefixr, game folders), the
+    /// game folders, which anchor portable paths as `<root:games>`, and each game's own prefix
+    /// by normalized title (see `settings::configure`).
+    fn configure(
+        &self,
+        wine_prefixes: Vec<PathBuf>,
+        game_folders: Vec<PathBuf>,
+        own_prefixes: BTreeMap<String, PathBuf>,
+    );
+    /// The prefix `game` is assigned to on this device, if any.
+    fn own_prefix(&self, game: &str) -> Option<PathBuf>;
     /// The manifest's name for a title as another program spells it ("ELDEN RING" → "Elden Ring").
     fn find_title(&self, name: &str) -> Option<String>;
 }
@@ -70,6 +78,7 @@ pub struct Ludusavi {
     steam_ids: HashMap<u32, String>,
     wine_prefixes: RwLock<Vec<PathBuf>>,
     game_folders: RwLock<Vec<PathBuf>>,
+    own_prefixes: RwLock<BTreeMap<String, PathBuf>>,
 }
 
 impl Ludusavi {
@@ -112,6 +121,7 @@ impl Ludusavi {
             steam_ids,
             wine_prefixes: RwLock::default(),
             game_folders: RwLock::default(),
+            own_prefixes: RwLock::default(),
         }
     }
 
@@ -232,13 +242,27 @@ impl Scanner for Ludusavi {
         out.into_iter().map(|(dir, name)| (name, dir)).collect()
     }
 
-    fn configure(&self, wine_prefixes: Vec<PathBuf>, game_folders: Vec<PathBuf>) {
+    fn configure(
+        &self,
+        wine_prefixes: Vec<PathBuf>,
+        game_folders: Vec<PathBuf>,
+        own_prefixes: BTreeMap<String, PathBuf>,
+    ) {
         let changed = *self.wine_prefixes.read().unwrap() != wine_prefixes;
         *self.wine_prefixes.write().unwrap() = wine_prefixes;
         *self.game_folders.write().unwrap() = game_folders;
+        *self.own_prefixes.write().unwrap() = own_prefixes;
         if changed {
             self.refresh();
         }
+    }
+
+    fn own_prefix(&self, game: &str) -> Option<PathBuf> {
+        self.own_prefixes
+            .read()
+            .unwrap()
+            .get(&normalize_title(game))
+            .cloned()
     }
 
     fn find_title(&self, name: &str) -> Option<String> {
@@ -260,6 +284,7 @@ pub struct FakeScanner {
     pub steam_cloud: Vec<String>,
     pub wine_prefixes: RwLock<Vec<PathBuf>>,
     pub game_folders: RwLock<Vec<PathBuf>>,
+    pub own_prefixes: RwLock<BTreeMap<String, PathBuf>>,
 }
 
 impl FakeScanner {
@@ -339,9 +364,22 @@ impl Scanner for FakeScanner {
     fn installed_games(&self) -> std::collections::BTreeSet<String> {
         self.games.keys().cloned().collect()
     }
-    fn configure(&self, wine_prefixes: Vec<PathBuf>, game_folders: Vec<PathBuf>) {
+    fn configure(
+        &self,
+        wine_prefixes: Vec<PathBuf>,
+        game_folders: Vec<PathBuf>,
+        own_prefixes: BTreeMap<String, PathBuf>,
+    ) {
         *self.wine_prefixes.write().unwrap() = wine_prefixes;
         *self.game_folders.write().unwrap() = game_folders;
+        *self.own_prefixes.write().unwrap() = own_prefixes;
+    }
+    fn own_prefix(&self, game: &str) -> Option<PathBuf> {
+        self.own_prefixes
+            .read()
+            .unwrap()
+            .get(&normalize_title(game))
+            .cloned()
     }
     fn find_title(&self, name: &str) -> Option<String> {
         let wanted = normalize_title(name);

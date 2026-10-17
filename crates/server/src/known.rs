@@ -6,7 +6,7 @@ use spielstand_protocol::{KnownRequest, KnownResponse};
 use crate::app::AppState;
 
 /// Ancestors of `version`, nearest first, by following `parent`.
-async fn ancestors(state: &AppState, version: &str) -> anyhow::Result<Vec<String>> {
+pub async fn ancestors(state: &AppState, version: &str) -> anyhow::Result<Vec<String>> {
     let rows: Vec<(String,)> = sqlx::query_as(
         "WITH RECURSIVE up(id, depth) AS (
              SELECT parent, 1 FROM versions WHERE id = ?

@@ -90,16 +90,22 @@ pub async fn dismiss(state: &AppState, id: i64) -> anyhow::Result<bool> {
     Ok(done.rows_affected() == 1)
 }
 
-/// The device's disk holds `version` now: alerts about that game on that device are settled.
+/// The device's disk holds `version` now: alerts about that game on that device whose lost
+/// state is `version` or one it descends from are settled. The device has that state again, or
+/// a newer one built on it; bringing the lost one back would now roll the device back.
 pub async fn settle(state: &AppState, device: &str, game: &str, version: &str) -> anyhow::Result<()> {
-    sqlx::query(
-        "UPDATE alerts SET dismissed_at = ? WHERE device = ? AND game = ? AND lost = ? AND dismissed_at IS NULL",
-    )
-    .bind(db::now())
-    .bind(device)
-    .bind(game)
-    .bind(version)
-    .execute(&state.db)
-    .await?;
+    let mut held = crate::known::ancestors(state, version).await?;
+    held.push(version.to_string());
+    for lost in held {
+        sqlx::query(
+            "UPDATE alerts SET dismissed_at = ? WHERE device = ? AND game = ? AND lost = ? AND dismissed_at IS NULL",
+        )
+        .bind(db::now())
+        .bind(device)
+        .bind(game)
+        .bind(&lost)
+        .execute(&state.db)
+        .await?;
+    }
     Ok(())
 }

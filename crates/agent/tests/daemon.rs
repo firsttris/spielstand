@@ -9,6 +9,7 @@ use common::{GAME, Pc, pc, server, server_contents};
 use spielstand_agent::{
     client::Client,
     daemon::{Timings, run_with},
+    sync::Outcome,
 };
 use spielstand_protocol::SaveMode;
 use tokio::{net::TcpListener, sync::Mutex, task::JoinHandle};
@@ -205,4 +206,53 @@ async fn after_the_server_was_gone_the_agent_reconnects_and_catches_up() {
     })
     .await;
     daemon.abort();
+}
+
+/// Back up only: loading an older version from the web UI and playing on must not turn every
+/// later session into a conflict ("played on two PCs" with one PC).
+#[tokio::test]
+async fn playing_on_after_loading_a_version_in_backup_mode_is_no_conflict() {
+    let s = server().await;
+    let desktop = pc(&s, "desktop", false).await;
+    s.set_mode(GAME, Some("backup"), &[&desktop]).await;
+    desktop.write_save("one");
+    desktop.agent.after_session(GAME, 60).await.unwrap();
+    let one = s.game(GAME).await["head"].as_str().unwrap().to_string();
+    desktop.write_save("two");
+    desktop.agent.after_session(GAME, 60).await.unwrap();
+
+    let daemon = start(&desktop);
+    let devices: serde_json::Value = s
+        .admin(reqwest::Method::GET, "/api/devices")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let device = devices[0]["id"].as_str().unwrap().to_string();
+    let restore = || {
+        s.admin(
+            reqwest::Method::POST,
+            &format!("/api/games/{}/restore", common::urlencode(GAME)),
+        )
+        .json(&serde_json::json!({ "device": device, "version": one }))
+        .send()
+    };
+    eventually("the web UI loads v1", || async {
+        restore().await.unwrap().status().is_success()
+    })
+    .await;
+    eventually("v1 on the disk", || async {
+        desktop.read_save().as_deref() == Some("one")
+    })
+    .await;
+    daemon.abort();
+
+    for session in ["three", "four"] {
+        desktop.write_save(session);
+        let outcome = desktop.agent.after_session(GAME, 60).await.unwrap();
+        assert_eq!(outcome, Outcome::Uploaded, "{session}");
+    }
+    assert_eq!(s.game(GAME).await["conflict"], false);
 }

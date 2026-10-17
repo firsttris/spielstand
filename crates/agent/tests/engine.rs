@@ -94,7 +94,11 @@ Hades:
     );
     assert!(engine.save_files("Hades").is_empty(), "not a root yet");
 
-    engine.configure(vec![prefix.clone()], vec![dir.path().join("Games")]);
+    engine.configure(
+        vec![prefix.clone()],
+        vec![dir.path().join("Games")],
+        Default::default(),
+    );
     let found = engine.save_files("Hades");
     assert!(!found.is_empty(), "the configured prefix is scanned");
     assert_eq!(engine.games_with_saves(), vec!["Hades".to_string()]);
@@ -129,7 +133,7 @@ fn a_version_is_written_into_a_folder_ludusavi_scans_as_a_whole() {
         manifest,
         StrictPath::from(dir.path().join("app")),
     );
-    engine.configure(vec![prefix.clone()], vec![]);
+    engine.configure(vec![prefix.clone()], vec![], Default::default());
 
     // A version holding "new", packed from a copy of the folder.
     std::fs::write(saves.join("Profile1.sav"), "new").unwrap();
