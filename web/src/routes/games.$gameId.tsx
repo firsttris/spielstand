@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { GameTile, Skeleton } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { bytes } from "@/lib/format";
+import { gameName } from "@/lib/game-name";
 import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/games/$gameId")({ component: Game });
@@ -44,13 +45,13 @@ function Game() {
           {m.nav_games()}
         </Link>
         <span aria-hidden="true">/</span>
-        <span className="text-foreground">{g.id}</span>
+        <span className="text-foreground">{gameName(g)}</span>
       </nav>
 
       <header className="flex flex-wrap items-center gap-4">
-        <GameTile title={g.id} size={56} />
+        <GameTile title={gameName(g)} size={56} />
         <div className="flex min-w-72 flex-1 flex-col gap-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">{g.id}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{gameName(g)}</h1>
           <div className="flex flex-wrap items-center gap-1.5">
             {g.conflict ? (
               <Badge variant="warning">{m.status_conflict()}</Badge>

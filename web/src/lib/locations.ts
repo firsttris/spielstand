@@ -9,6 +9,10 @@ export type Need =
   /** Another program still syncs the saves: Spielstand only backs up there for now. */
   | { kind: "foreignSync"; tool: string; folder: string }
   | { kind: "choosePrefix"; candidates: string[] }
+  /** Several emulators hold a Switch game's save; the candidates are their save folders. */
+  | { kind: "chooseEmulator"; candidates: string[] }
+  /** Ryujinx only uses saves it created: the game has to be started there once. */
+  | { kind: "startInEmulator"; emulator: string }
   | { kind: "failed"; message: string };
 
 export type LocationView = {
@@ -41,10 +45,14 @@ export function viewLocation(
       ? { kind: "choosePrefix", candidates: [] }
       : problem?.kind === "severalPrefixes"
         ? { kind: "choosePrefix", candidates: problem.candidates }
-        : problem?.kind === "failed"
-          ? { kind: "failed", message: problem.message }
-          : foreign && !foreign.excluded
-            ? { kind: "foreignSync", tool: foreign.tool, folder: foreign.folder }
-            : { kind: "nothing" };
+        : problem?.kind === "severalEmulators"
+          ? { kind: "chooseEmulator", candidates: problem.candidates }
+          : problem?.kind === "startInEmulator"
+            ? { kind: "startInEmulator", emulator: problem.emulator }
+            : problem?.kind === "failed"
+              ? { kind: "failed", message: problem.message }
+              : foreign && !foreign.excluded
+                ? { kind: "foreignSync", tool: foreign.tool, folder: foreign.folder }
+                : { kind: "nothing" };
   return { standing, need, backupOnly: report?.effectiveMode === "backup" };
 }

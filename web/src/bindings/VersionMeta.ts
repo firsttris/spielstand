@@ -22,4 +22,9 @@ blobSha256: string, blobSize: number, files: Array<FileEntry>,
  * Where the Wine prefix of files stored as `<prefix>/…` was, as a portable path
  * (e.g. `<root:games>/Hades/prefix`): a hint for finding the prefix on another device.
  */
-prefix?: string | null, };
+prefix?: string | null, 
+/**
+ * The game's name when its id is not one (`Switch 0100F2C0115B6000`), as the device's
+ * emulator knows it.
+ */
+title?: string | null, };

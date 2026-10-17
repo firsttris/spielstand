@@ -69,7 +69,18 @@ pub async fn devices(state: &AppState) -> anyhow::Result<Vec<Device>> {
         .collect()
 }
 
+/// The newest name a version gave each game, for games whose id is not a name.
+async fn titles(state: &AppState) -> anyhow::Result<BTreeMap<String, String>> {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT game, title FROM versions WHERE title IS NOT NULL AND deleted_at IS NULL ORDER BY created_at",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
 pub async fn games(state: &AppState) -> anyhow::Result<Vec<GameSummary>> {
+    let titles = titles(state).await?;
     let names = device_names(state).await?;
     let playing = playing_by_game(state).await?;
     let (default_mode, game_modes) = (modes::default_mode(state).await?, modes::game_modes(state).await?);
@@ -120,6 +131,7 @@ pub async fn games(state: &AppState) -> anyhow::Result<Vec<GameSummary>> {
                 behind,
                 overwritten: overwritten.contains(&id),
                 mode: game_modes.get(&id).copied().unwrap_or(default_mode),
+                title: titles.get(&id).cloned(),
                 id,
             })
         })
@@ -179,6 +191,7 @@ pub async fn game(state: &AppState, game: &str) -> anyhow::Result<Option<GameDet
     let (mode, mode_is_default) = modes::mode_of(state, game).await?;
     Ok(Some(GameDetail {
         id: game.to_string(),
+        title: versions.iter().find_map(|v| v.meta.title.clone()),
         conflict: !open.is_empty(),
         locations: reports::locations(state, game, head.as_deref()).await?,
         alerts: alerts::open(state, Some(game)).await?,

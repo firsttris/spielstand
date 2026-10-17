@@ -15,6 +15,10 @@ pinned version (`=0.31.0`; `src/scan.rs`, `src/scan/layout.rs`, `src/resource/ma
 commit messages where it settles a detail. Ludusavi is used only through `agent/src/engine.rs` and
 `server/src/importer.rs`; a version bump starts there and in their tests.
 
+The Switch emulators' layouts (`agent/src/emulators/`) come from their sources: Eden
+(`github.com/eden-emulator/mirror`, which also holds yuzu's history), Citron, and Ryujinx
+(`src/Ryujinx.HLE/FileSystem`, `Ryujinx.HLE/HOS/Services/Account`). Name the file in comments.
+
 ## With every change
 
 Update what the change affects, in the same pull request, and only that:

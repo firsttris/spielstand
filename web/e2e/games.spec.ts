@@ -35,6 +35,18 @@ test("several possible prefixes are a question with a choice", async ({ page }) 
   expect((await saved).ok()).toBeTruthy();
 });
 
+test("a Switch game shows its name and what Ryujinx needs first", async ({ page }) => {
+  await login(page, "/games");
+  await page.getByRole("link", { name: "The Legend of Zelda: Tears of the Kingdom" }).click();
+  await expect(
+    page.getByRole("heading", { name: "The Legend of Zelda: Tears of the Kingdom", level: 1 }),
+  ).toBeVisible();
+  const living = devices(page).getByRole("listitem", { name: "Wohnzimmer-PC" });
+  await expect(living.getByText("Eden", { exact: true })).toBeVisible();
+  const deck = devices(page).getByRole("listitem", { name: "Steam Deck" });
+  await expect(deck.getByText(/Starte das Spiel einmal in Ryujinx/)).toBeVisible();
+});
+
 test("a game's mode is chosen on its page", async ({ page }) => {
   await login(page, "/games/Hollow%20Knight");
   const mode = page.getByRole("combobox", { name: "Modus" });

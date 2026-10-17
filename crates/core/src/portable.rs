@@ -20,6 +20,11 @@ const ANCHORED_STORES: &[&str] = &["steam", "heroic", "lutris", "legendary", "go
 /// folder that is on another device is decided there, for that game.
 pub const PREFIX: &str = "<prefix>";
 
+/// A Switch emulator's save of one title is stored relative to that title's save folder:
+/// `<switch>/…`. The emulator, its data folder and the profile id differ between devices; which
+/// folder it is there is decided on that device, for that title.
+pub const SWITCH: &str = "<switch>";
+
 pub fn is_anchored_store(store: &str) -> bool {
     ANCHORED_STORES.contains(&store)
 }
@@ -143,6 +148,21 @@ pub fn resolve_in_prefix(portable: &str, prefix: &Path, users: &[String], fallba
         }
     };
     Some(prefix.join(format!("drive_c/users/{user}{tail}")))
+}
+
+/// `<switch>/rel` for a file inside a title's save folder `dir`.
+pub fn to_portable_in_save_dir(path: &Path, dir: &Path) -> Option<String> {
+    rel(path, dir).map(|rest| join(SWITCH, &rest))
+}
+
+pub fn is_in_save_dir(portable: &str) -> bool {
+    portable.starts_with("<switch>/")
+}
+
+/// Where `<switch>/…` lands in the title's save folder `dir` on this device.
+pub fn resolve_in_save_dir(portable: &str, dir: &Path) -> Option<PathBuf> {
+    let rest = portable.strip_prefix("<switch>/")?;
+    (!rest.is_empty()).then(|| dir.join(rest))
 }
 
 #[cfg(test)]
@@ -281,5 +301,20 @@ mod tests {
             ),
             Some(deck.join("drive_c/users/Public/Documents/x"))
         );
+    }
+
+    #[test]
+    fn switch_saves_are_relative_to_the_titles_save_folder() {
+        let here = Path::new("/home/t/.local/share/eden/nand/user/save/0000000000000000/AB/0100F2C0115B6000");
+        let there = Path::new("/home/deck/.config/Ryujinx/bis/user/save/0000000000000004/0");
+        let portable = to_portable_in_save_dir(&here.join("slot_0/progress.sav"), here).unwrap();
+        assert_eq!(portable, "<switch>/slot_0/progress.sav");
+        assert!(is_in_save_dir(&portable));
+        assert_eq!(
+            resolve_in_save_dir(&portable, there),
+            Some(there.join("slot_0/progress.sav"))
+        );
+        assert_eq!(resolve_in_save_dir("<switch>/", there), None);
+        assert_eq!(to_portable_in_save_dir(Path::new("/elsewhere/x"), here), None);
     }
 }

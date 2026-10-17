@@ -35,6 +35,7 @@ nav:
   - How syncing works: how-it-works.md
   - Coming from Ludusavi: ludusavi.md
   - The agent: agent.md
+  - Switch emulators: emulators.md
   - Configuration: configuration.md
   - Backup and recovery: recovery.md
   - Development: development.md

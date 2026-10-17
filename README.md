@@ -108,6 +108,8 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
 - **One prefix per game**: saves in each game's own Wine prefix (Prefixr,
   game folders like `~/Games`) load into the right prefix on every PC, whatever its path or user name.
 - **Says why**: each game's page shows where every PC keeps the save and why one is not in step.
+- **Switch emulators**: Eden, Citron, yuzu, Suyu, Sudachi and Ryujinx, one game per title, across
+  emulators: play on in Ryujinx on the Deck where Eden on the desktop stopped.
 
 ### ☁️ Backup
 
@@ -161,6 +163,10 @@ other stays a version.
 Yes. Saves in Wine and Proton prefixes, Heroic and Lutris are found through the Ludusavi manifest.
 When every game has its own prefix, Spielstand finds them in your game folders or in Prefixr and
 loads each save into that game's prefix on every PC.
+
+### Does it sync Switch emulator saves (Eden, Ryujinx, yuzu forks)?
+Yes, without setup. Each title is its own game, and a save moves between emulators and profiles:
+from Eden on one PC to Ryujinx on another.
 
 ### Does it run on Windows?
 Not yet: the agent is for Linux. The server runs anywhere Docker runs.

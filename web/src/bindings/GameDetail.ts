@@ -4,7 +4,7 @@ import type { GameLocation } from "./GameLocation";
 import type { SaveMode } from "./SaveMode";
 import type { VersionRow } from "./VersionRow";
 
-export type GameDetail = { id: string, head: string | null, versions: Array<VersionRow>, conflict: boolean, playingOn: string | null, mode: SaveMode, 
+export type GameDetail = { id: string, title: string | null, head: string | null, versions: Array<VersionRow>, conflict: boolean, playingOn: string | null, mode: SaveMode, 
 /**
  * The mode is the server's default, not set for this game.
  */

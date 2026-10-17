@@ -2,7 +2,11 @@
 import type { HeadSummary } from "./HeadSummary";
 import type { SaveMode } from "./SaveMode";
 
-export type GameSummary = { id: string, head: HeadSummary | null, headDeviceName: string | null, versions: number, conflict: boolean, playingOn: string | null, 
+export type GameSummary = { id: string, 
+/**
+ * The name to show when the id is not one (Switch games are keyed by title id).
+ */
+title: string | null, head: HeadSummary | null, headDeviceName: string | null, versions: number, conflict: boolean, playingOn: string | null, 
 /**
  * Devices whose disk holds an older version than the head.
  */

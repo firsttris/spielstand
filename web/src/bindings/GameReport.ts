@@ -16,7 +16,8 @@ location: string | null,
  */
 prefix: string | null, 
 /**
- * How the saves were found: `steam`, `prefixr`, `gameFolder`, `heroic`, `lutris`, `ludusavi`.
+ * How the saves were found: `steam`, `prefixr`, `gameFolder`, `heroic`, `lutris`,
+ * `ludusavi`, or the emulator's name (`Eden`, `Ryujinx`, …) for a Switch game.
  */
 source: string | null, 
 /**

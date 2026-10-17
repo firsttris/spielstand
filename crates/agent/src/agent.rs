@@ -202,6 +202,10 @@ impl Agent {
 
     /// The prefix of `game` on this device, for a version with saves inside a prefix.
     pub fn prefix_for(&self, game: &str, meta: &VersionMeta) -> Result<Option<PathBuf>, GameProblem> {
+        // A Switch game: the title's save folder in this device's emulator.
+        if let Some(place) = self.scanner.emulator_place(game) {
+            return place.map(|p| Some(p.dir));
+        }
         if !meta.files.iter().any(|f| portable::is_in_prefix(&f.path)) {
             return Ok(None);
         }
@@ -233,6 +237,11 @@ impl Agent {
     /// A game is here when a launcher has it installed, Prefixr has it in its library or a
     /// prefix was chosen for it: only then does a state from another PC belong on this disk.
     pub fn installed_here(&self, game: &str, installed: &std::collections::BTreeSet<String>) -> bool {
+        // A Switch game is here when an emulator is: its save goes into the profile's folder
+        // even before the game was started (Ryujinx says what it needs instead).
+        if let Some(place) = self.scanner.emulator_place(game) {
+            return !matches!(place, Err(GameProblem::NoPrefix));
+        }
         if installed.contains(game) || self.settings().prefix_choices.contains_key(game) {
             return true;
         }

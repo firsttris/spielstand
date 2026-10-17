@@ -79,6 +79,12 @@ shared! {
         SeveralPrefixes { candidates: Vec<String> },
         /// Loading failed; the message says why.
         Failed { message: String },
+        /// Several emulators on this device could hold a Switch game's save; one has to be
+        /// chosen. The candidates are the title's save folders.
+        SeveralEmulators { candidates: Vec<String> },
+        /// The emulator only uses saves it created itself (Ryujinx): the game has to be started
+        /// there once before a save can be loaded.
+        StartInEmulator { emulator: String },
     }
 
     /// What a device knows about one game.
@@ -90,7 +96,8 @@ shared! {
         pub location: Option<String>,
         /// The game's Wine prefix on this device.
         pub prefix: Option<String>,
-        /// How the saves were found: `steam`, `prefixr`, `gameFolder`, `heroic`, `lutris`, `ludusavi`.
+        /// How the saves were found: `steam`, `prefixr`, `gameFolder`, `heroic`, `lutris`,
+        /// `ludusavi`, or the emulator's name (`Eden`, `Ryujinx`, …) for a Switch game.
         pub source: Option<String>,
         /// The mode in effect here; `backup` while another tool still syncs the saves.
         pub effective_mode: SaveMode,

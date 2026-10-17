@@ -3,4 +3,4 @@
 /**
  * Why a device is not in step for a game, in words the web UI can show with an action.
  */
-export type GameProblem = { "kind": "noPrefix" } | { "kind": "severalPrefixes", candidates: Array<string>, } | { "kind": "failed", message: string, };
+export type GameProblem = { "kind": "noPrefix" } | { "kind": "severalPrefixes", candidates: Array<string>, } | { "kind": "failed", message: string, } | { "kind": "severalEmulators", candidates: Array<string>, } | { "kind": "startInEmulator", emulator: string, };

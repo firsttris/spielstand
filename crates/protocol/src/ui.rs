@@ -43,6 +43,8 @@ shared! {
     #[serde(rename_all = "camelCase")]
     pub struct GameSummary {
         pub id: String,
+        /// The name to show when the id is not one (Switch games are keyed by title id).
+        pub title: Option<String>,
         pub head: Option<HeadSummary>,
         pub head_device_name: Option<String>,
         #[cfg_attr(feature = "ts", ts(type = "number"))]
@@ -73,6 +75,7 @@ shared! {
     #[serde(rename_all = "camelCase")]
     pub struct GameDetail {
         pub id: String,
+        pub title: Option<String>,
         pub head: Option<String>,
         pub versions: Vec<VersionRow>,
         pub conflict: bool,

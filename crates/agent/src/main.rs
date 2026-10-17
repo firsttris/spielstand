@@ -7,6 +7,7 @@ use spielstand_agent::{
     config::{AgentConfig, Dirs},
     daemon,
     desktop::Desktop,
+    emulators::{Xdg, scanner::WithEmulators},
     engine::{Ludusavi, Scanner},
     running,
 };
@@ -54,7 +55,9 @@ enum Command {
 }
 
 fn scanner(dirs: &Dirs) -> anyhow::Result<Arc<dyn Scanner>> {
-    Ok(Arc::new(Ludusavi::open(&dirs.ludusavi())?))
+    let ludusavi: Arc<dyn Scanner> = Arc::new(Ludusavi::open(&dirs.ludusavi())?);
+    let home = dirs::home_dir().unwrap_or_default();
+    Ok(Arc::new(WithEmulators::new(ludusavi, Xdg::from_env(&home))))
 }
 
 async fn pair(dirs: &Dirs, server: String, code: String, name: Option<String>) -> anyhow::Result<()> {

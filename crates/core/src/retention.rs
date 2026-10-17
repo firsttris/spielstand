@@ -130,9 +130,12 @@ mod tests {
             for i in &items {
                 if i.protected { proptest::prop_assert!(!gone.contains(&i.id)); }
             }
+            // The newest of each device stays; of several made at the same moment, one does.
             for dev in 0..3u8 {
-                let newest = items.iter().filter(|i| i.device == format!("d{dev}")).max_by_key(|i| i.created_at);
-                if let Some(n) = newest { proptest::prop_assert!(!gone.contains(&n.id)); }
+                let mine: Vec<&Item> = items.iter().filter(|i| i.device == format!("d{dev}")).collect();
+                if let Some(at) = mine.iter().map(|i| i.created_at).max() {
+                    proptest::prop_assert!(mine.iter().any(|i| i.created_at == at && !gone.contains(&i.id)));
+                }
             }
         }
     }

@@ -44,8 +44,24 @@ pub trait Scanner: Send + Sync {
         game_folders: Vec<PathBuf>,
         own_prefixes: BTreeMap<String, PathBuf>,
     );
-    /// The prefix `game` is assigned to on this device, if any.
+    /// The prefix `game` is assigned to on this device, if any; for a Switch game, its save
+    /// folder.
     fn own_prefix(&self, game: &str) -> Option<PathBuf>;
+    /// The name to show for a game whose key is not one (a Switch game's title id).
+    fn title(&self, _game: &str) -> Option<String> {
+        None
+    }
+    /// For a Switch game: where its save is on this device, or why that is unclear.
+    fn emulator_place(
+        &self,
+        _game: &str,
+    ) -> Option<Result<crate::emulators::Place, spielstand_protocol::GameProblem>> {
+        None
+    }
+    /// The Switch games with a save on this device.
+    fn emulator_games(&self) -> Vec<String> {
+        vec![]
+    }
     /// The manifest's name for a title as another program spells it ("ELDEN RING" → "Elden Ring").
     fn find_title(&self, name: &str) -> Option<String>;
 }

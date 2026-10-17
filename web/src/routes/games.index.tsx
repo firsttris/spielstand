@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { PageHeader, Skeleton } from "@/components/ui/misc";
 import { api } from "@/lib/api";
+import { gameName } from "@/lib/game-name";
 import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/games/")({ component: Games });
@@ -14,8 +15,8 @@ function Games() {
   const games = useQuery({ queryKey: ["games"], queryFn: api.games, refetchInterval: 5_000 });
   const [query, setQuery] = useState("");
   const shown = (games.data ?? [])
-    .filter((g) => g.id.toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => Number(b.conflict) - Number(a.conflict) || a.id.localeCompare(b.id));
+    .filter((g) => gameName(g).toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => Number(b.conflict) - Number(a.conflict) || gameName(a).localeCompare(gameName(b)));
 
   return (
     <>

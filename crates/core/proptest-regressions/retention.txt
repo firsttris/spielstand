@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 73fd246ad64d0c19df8171968366c265aa935cc863bfb5cd9c428ba1563041ab # shrinks to ages = [(63, 15, false, 0), (63, 15, false, 0)]

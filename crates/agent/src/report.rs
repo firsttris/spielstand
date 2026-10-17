@@ -44,6 +44,18 @@ impl Agent {
     pub async fn games_here(&self) -> Vec<String> {
         let mut games = self.store.tracked_games().await.unwrap_or_default();
         games.extend(self.problems.lock().unwrap().keys().cloned());
+        // A Switch game held by two emulators is backed up only once one is chosen: say so.
+        let scanner = self.scanner.clone();
+        let unclear = tokio::task::spawn_blocking(move || {
+            scanner
+                .emulator_games()
+                .into_iter()
+                .filter(|g| matches!(scanner.emulator_place(g), Some(Err(_))))
+                .collect::<Vec<_>>()
+        })
+        .await
+        .unwrap_or_default();
+        games.extend(unclear);
         games.sort();
         games.dedup();
         games
@@ -66,15 +78,22 @@ impl Agent {
             .collect();
         let folders = settings::game_folders(&settings, &self.scanner.anchors().home);
         let (effective_mode, foreign_sync) = self.effective_mode(game);
+        let emulator = self.scanner.emulator_place(game);
+        let (emulator_name, emulator_problem) = match emulator {
+            Some(Ok(place)) => (Some(place.emulator.to_string()), None),
+            Some(Err(problem)) => (None, Some(problem)),
+            None => (None, None),
+        };
         GameReport {
             game: game.to_string(),
             location: common_dir(&files).map(|d| d.display().to_string()),
-            source: source(prefix.as_deref(), &prefixr, &folders)
+            source: emulator_name
+                .or_else(|| source(prefix.as_deref(), &prefixr, &folders))
                 .or_else(|| (!files.is_empty()).then(|| "ludusavi".into())),
             prefix: prefix.map(|p| p.display().to_string()),
             effective_mode,
             foreign_sync,
-            problem: self.problem(game),
+            problem: self.problem(game).or(emulator_problem),
         }
     }
 

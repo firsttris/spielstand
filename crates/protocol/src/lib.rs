@@ -77,6 +77,10 @@ shared! {
         /// (e.g. `<root:games>/Hades/prefix`): a hint for finding the prefix on another device.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub prefix: Option<String>,
+        /// The game's name when its id is not one (`Switch 0100F2C0115B6000`), as the device's
+        /// emulator knows it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub title: Option<String>,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

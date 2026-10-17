@@ -12,7 +12,7 @@ use spielstand_agent::{
     Agent, Choice, Ui,
     client::Client,
     config::{AgentConfig, Dirs},
-    engine::FakeScanner,
+    engine::{FakeScanner, Scanner},
     settings::Sources,
     store::Store,
 };
@@ -136,6 +136,19 @@ pub async fn pc(server: &Server, name: &str, steam_cloud: bool) -> Pc {
 
 /// A paired PC whose disk and outside programs `setup` describes, given its home folder.
 pub async fn pc_with(server: &Server, name: &str, setup: impl FnOnce(&Path) -> (FakeScanner, Sources)) -> Pc {
+    pc_with_scanner(server, name, |home| {
+        let (scanner, sources) = setup(home);
+        (Arc::new(scanner) as Arc<dyn Scanner>, sources)
+    })
+    .await
+}
+
+/// Like [`pc_with`], with any scanner (e.g. the fake disk with the Switch emulators added).
+pub async fn pc_with_scanner(
+    server: &Server,
+    name: &str,
+    setup: impl FnOnce(&Path) -> (Arc<dyn Scanner>, Sources),
+) -> Pc {
     let http = reqwest::Client::new();
     let code: serde_json::Value = http
         .post(format!("{}/api/pair-codes", server.url))
@@ -174,7 +187,7 @@ pub async fn pc_with(server: &Server, name: &str, setup: impl FnOnce(&Path) -> (
         config,
         Store::open(&root.join("data/agent.db")).await.unwrap(),
         Client::new(&server.url, &paired.token),
-        Arc::new(scanner),
+        scanner,
         ui.clone(),
         sources,
     );

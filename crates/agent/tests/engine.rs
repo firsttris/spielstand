@@ -155,6 +155,7 @@ fn a_version_is_written_into_a_folder_ludusavi_scans_as_a_whole() {
         blob_size: packed.blob_size,
         files: packed.files,
         prefix: None,
+        title: None,
     };
     let dirs = spielstand_agent::config::Dirs::under(&dir.path().join("agent"));
     spielstand_agent::disk::write(&dirs, &engine, &meta, &blob, Some(&prefix)).unwrap();

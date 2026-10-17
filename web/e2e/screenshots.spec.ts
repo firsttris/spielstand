@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("overview", async ({ page }) => {
-  await expect(page.getByRole("table", { name: "Games" }).getByRole("link")).toHaveCount(5);
+  await expect(page.getByRole("table", { name: "Games" }).getByRole("link")).toHaveCount(6);
   await page.screenshot({ path: `${dir}/overview.png` });
 });
 
@@ -56,6 +56,6 @@ test("pairing", async ({ page }) => {
 
 test("overview in dark mode", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  await expect(page.getByRole("table", { name: "Games" }).getByRole("link")).toHaveCount(5);
+  await expect(page.getByRole("table", { name: "Games" }).getByRole("link")).toHaveCount(6);
   await page.screenshot({ path: `${dir}/overview-dark.png` });
 });

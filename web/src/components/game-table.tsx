@@ -4,6 +4,7 @@ import type { GameSummary } from "@/bindings/GameSummary";
 import { GameStatus } from "@/components/status";
 import { GameTile } from "@/components/ui/misc";
 import { relative } from "@/lib/format";
+import { gameName } from "@/lib/game-name";
 import { m } from "@/paraglide/messages";
 
 const head = "px-3 py-2 text-left text-xs font-medium text-muted-foreground";
@@ -29,14 +30,14 @@ export function GameTable({ games }: { games: GameSummary[] }) {
             <tr key={g.id} className="relative border-b border-border/50 last:border-0 hover:bg-accent/50">
               <td className={cell}>
                 <span className="flex min-w-0 items-center gap-3">
-                  <GameTile title={g.id} />
+                  <GameTile title={gameName(g)} />
                   <span className="flex min-w-0 flex-col">
                     <Link
                       to="/games/$gameId"
                       params={{ gameId: g.id }}
                       className="truncate font-medium after:absolute after:inset-0 focus-visible:outline-none"
                     >
-                      {g.id}
+                      {gameName(g)}
                     </Link>
                     <span className="text-xs text-muted-foreground">
                       {m.versions_count({ n: g.versions })}

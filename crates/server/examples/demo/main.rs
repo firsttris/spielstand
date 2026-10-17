@@ -6,6 +6,10 @@
 
 mod reports;
 
+/// The demo's Switch game: keyed by its title id, named as the emulator knows it.
+const ZELDA: &str = "Switch 0100F2C0115B6000";
+const ZELDA_NAME: &str = "The Legend of Zelda: Tears of the Kingdom";
+
 use std::path::Path;
 
 use chrono::{DateTime, Duration, Utc};
@@ -176,6 +180,12 @@ impl Demo {
             self.agent_post(device, paths::REPORT, report).await?;
         }
 
+        // A Switch game from Eden in the Wohnzimmer; the deck's Ryujinx has not started it yet.
+        let zelda = self
+            .upload_switch(&living, ZELDA_NAME, "zelda-0", h(10), 95)
+            .await?;
+        self.base(&living, ZELDA, &zelda).await?;
+
         // Wohnzimmer and Steam Deck stay connected; the Arbeitszimmer is switched off.
         Ok(vec![self.connect(&living).await?, self.connect(&deck).await?])
     }
@@ -223,6 +233,43 @@ impl Demo {
         minutes: u64,
     ) -> anyhow::Result<String> {
         let (meta, blob) = version(&self.dir, game, content, parent, at, minutes)?;
+        self.send(device, meta, blob).await
+    }
+
+    /// A Switch game's version: keyed by title id, named by the emulator, files in `<switch>/`.
+    async fn upload_switch(
+        &self,
+        device: &Device,
+        title: &str,
+        content: &str,
+        at: DateTime<Utc>,
+        minutes: u64,
+    ) -> anyhow::Result<String> {
+        let (mut meta, _) = version(&self.dir, ZELDA, content, None, at, minutes)?;
+        let save = self.dir.join(format!("{}.switch", meta.id));
+        std::fs::write(&save, content.repeat(512))?;
+        let blob = self.dir.join(format!("{}.switch.tar.zst", meta.id));
+        let packed = pack::pack(
+            &[Source {
+                portable: "<switch>/slot_0/progress.sav".into(),
+                path: save,
+            }],
+            &blob,
+        )?;
+        meta.content_hash = packed.content_hash;
+        meta.blob_sha256 = packed.blob_sha256;
+        meta.blob_size = packed.blob_size;
+        meta.files = packed.files;
+        meta.title = Some(title.into());
+        self.send(device, meta, blob).await
+    }
+
+    async fn send(
+        &self,
+        device: &Device,
+        meta: VersionMeta,
+        blob: std::path::PathBuf,
+    ) -> anyhow::Result<String> {
         let mut body = framing::encode_prefix(&serde_json::to_vec(&meta)?);
         body.extend(std::fs::read(blob)?);
         self.http
@@ -339,6 +386,7 @@ fn version(
         blob_size: packed.blob_size,
         files: packed.files,
         prefix: None,
+        title: None,
     };
     Ok((meta, blob))
 }

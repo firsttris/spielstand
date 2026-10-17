@@ -15,7 +15,7 @@ use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 
 use crate::{
     agent::Agent,
-    disk,
+    disk, emulators,
     running::{self, Watcher},
     sync::{Mode, Outcome},
     watch::{self, Debounce},
@@ -214,16 +214,25 @@ async fn watch_processes(agent: &Agent, playing: &Playing, every: Duration) {
             installs_at = Instant::now();
         }
         let wrapped = running::wrapped(&agent.dirs);
-        let now_running: BTreeMap<String, u32> = watcher
+        let mut now_running: BTreeMap<String, u32> = watcher
             .running(&installs)
             .into_iter()
             .filter(|(g, _)| !wrapped.contains(g))
             .collect();
+        // Which title an emulator plays is not visible from outside: while one runs, every
+        // Switch game here counts as open, so none is written to.
+        if let Some(pid) = watcher.program(emulators::PROCESSES) {
+            for game in agent.scanner.emulator_games() {
+                now_running.entry(game).or_insert(pid);
+            }
+        }
         let mut state = playing.lock().await;
         for (game, pid) in &now_running {
             if !state.contains_key(game) {
                 tracing::info!("{game} started");
-                let _ = agent.client.presence(Some(game)).await;
+                if emulators::title_id(game).is_none() {
+                    let _ = agent.client.presence(Some(game)).await;
+                }
                 state.insert(game.clone(), (*pid, Instant::now()));
             }
         }
@@ -237,6 +246,10 @@ async fn watch_processes(agent: &Agent, playing: &Playing, every: Duration) {
             tracing::info!("{game} ended");
             if let Err(e) = agent.after_session(&game, started.elapsed().as_secs()).await {
                 tracing::warn!("{game}: after session: {e:#}");
+            }
+            // A new state that arrived while the game was open was not loaded then; now it is.
+            if let Err(e) = agent.sync_game(&game, Mode::Background).await {
+                tracing::warn!("{game}: sync after session: {e:#}");
             }
         }
         drop(state);

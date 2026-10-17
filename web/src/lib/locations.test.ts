@@ -45,6 +45,19 @@ describe("viewLocation", () => {
     });
   });
 
+  it("asks which emulator holds a Switch game, or to start it once in Ryujinx", () => {
+    const several = report({ problem: { kind: "severalEmulators", candidates: ["/eden/X", "/ryu/0"] } });
+    expect(viewLocation(at({ report: several })).need).toEqual({
+      kind: "chooseEmulator",
+      candidates: ["/eden/X", "/ryu/0"],
+    });
+    const start = report({ problem: { kind: "startInEmulator", emulator: "Ryujinx" } });
+    expect(viewLocation(at({ report: start })).need).toEqual({
+      kind: "startInEmulator",
+      emulator: "Ryujinx",
+    });
+  });
+
   it("explains why a device only backs up while another program syncs the saves", () => {
     const view = viewLocation(
       at({

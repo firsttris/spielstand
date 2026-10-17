@@ -105,7 +105,8 @@ pub fn chosen_prefix(settings: &AgentSettings, game: &str, home: &Path) -> Optio
         .prefix_choices
         .get(game)
         .map(|p| prefixes::expand_home(p, home))
-        .filter(|p| prefixes::is_wine_prefix(p))
+        // For a Switch game the choice is the save folder of one of its emulators.
+        .filter(|p| prefixes::is_wine_prefix(p) || crate::emulators::title_id(game).is_some())
 }
 
 /// The prefixes of the Prefixr games that are `game`: by the manifest's title, or the same

@@ -108,9 +108,41 @@ impl Watcher {
     }
 }
 
+impl Watcher {
+    /// A running process of one of `programs` (by executable name, or by process name, which
+    /// Linux cuts to 15 characters), from the processes `running` just read.
+    pub fn program(&self, programs: &[&str]) -> Option<u32> {
+        self.system.processes().iter().find_map(|(pid, process)| {
+            let exe = process
+                .exe()
+                .and_then(|e| e.file_name())
+                .map(|n| n.to_string_lossy().to_string());
+            let name = process.name().to_string_lossy().to_string();
+            programs
+                .iter()
+                .any(|p| exe.as_deref() == Some(*p) || is_process_name(&name, p))
+                .then(|| pid.as_u32())
+        })
+    }
+}
+
+/// `name` is what Linux shows for a process of `program`: the first 15 characters.
+fn is_process_name(name: &str, program: &str) -> bool {
+    let cut: String = program.chars().take(15).collect();
+    name == program || name == cut
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn process_names_are_cut_to_15_characters() {
+        assert!(is_process_name("eden", "eden"));
+        assert!(is_process_name("Ryujinx.Headles", "Ryujinx.Headless.SDL2"));
+        assert!(!is_process_name("edenx", "eden"));
+        assert!(!is_process_name("Ryujinx.Headles", "Ryujinx"));
+    }
 
     #[test]
     fn proton_paths_match_install_dirs() {

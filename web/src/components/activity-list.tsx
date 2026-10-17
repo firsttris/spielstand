@@ -1,6 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import type { Activity } from "@/bindings/Activity";
 import type { EventKind } from "@/bindings/EventKind";
 import { Badge } from "@/components/ui/badge";
+import { api } from "@/lib/api";
+import { namesById } from "@/lib/game-name";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
@@ -30,6 +33,8 @@ export function ActivityList({
   when: (iso: string) => string;
   className?: string;
 }) {
+  const games = useQuery({ queryKey: ["games"], queryFn: api.games });
+  const name = namesById(games.data);
   return (
     <ol className={cn("flex flex-col", className)}>
       {items.map((a) => (
@@ -39,7 +44,7 @@ export function ActivityList({
         >
           <span className="w-32 shrink-0 text-xs text-muted-foreground">{when(a.at)}</span>
           <span className="min-w-48 flex-1">
-            {a.game && <span className="font-medium">{a.game}: </span>}
+            {a.game && <span className="font-medium">{name(a.game)}: </span>}
             {eventText[a.kind]()}
           </span>
           {a.deviceName && <Badge className="h-5 px-1.5 text-[11px]">{a.deviceName}</Badge>}

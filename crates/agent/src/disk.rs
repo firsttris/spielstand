@@ -83,26 +83,41 @@ fn main_prefix(files: &[PathBuf]) -> Option<PathBuf> {
     counts.into_iter().max_by_key(|(_, n)| *n).map(|(p, _)| p)
 }
 
-fn portable_of(path: &Path, prefix: Option<&Path>, anchors: &Anchors) -> String {
-    if let Some(prefix) = prefix
-        && let Some(p) = portable::to_portable_in_prefix(&real_path(path), &real_path(prefix))
-    {
-        return p;
-    }
-    portable::to_portable(path, anchors)
+/// Where a save file's place is: a Switch title's save folder, or the Wine prefix most save
+/// files lie in.
+#[derive(Clone, Copy)]
+enum Place<'a> {
+    SaveDir(&'a Path),
+    Prefix(&'a Path),
+    None,
+}
+
+fn portable_of(path: &Path, place: Place<'_>, anchors: &Anchors) -> String {
+    let found = match place {
+        Place::SaveDir(dir) => portable::to_portable_in_save_dir(path, dir),
+        Place::Prefix(prefix) => portable::to_portable_in_prefix(&real_path(path), &real_path(prefix)),
+        Place::None => None,
+    };
+    found.unwrap_or_else(|| portable::to_portable(path, anchors))
 }
 
 pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
     let anchors = scanner.anchors();
     let found = save_files(scanner, game);
-    let prefix = main_prefix(&found);
+    let save_dir = scanner.emulator_place(game).and_then(Result::ok).map(|p| p.dir);
+    let prefix = save_dir.clone().or_else(|| main_prefix(&found));
+    let place = match (&save_dir, &prefix) {
+        (Some(dir), _) => Place::SaveDir(dir),
+        (None, Some(prefix)) => Place::Prefix(prefix),
+        (None, None) => Place::None,
+    };
     let mut seen = BTreeSet::new();
     let mut portables = BTreeSet::new();
     let sources: Vec<Source> = found
         .into_iter()
         .filter(|path| seen.insert(real_path(path)))
         .map(|path| Source {
-            portable: portable_of(&path, prefix.as_deref(), &anchors),
+            portable: portable_of(&path, place, &anchors),
             path,
         })
         // Two real profiles with the same save path: one place to put it back, so one file.
@@ -141,10 +156,13 @@ pub async fn snapshot(
     let id = spielstand_core::new_version_id(now);
     tokio::fs::create_dir_all(dirs.outbox()).await?;
     let blob = dirs.outbox().join(format!("{id}.tar.zst"));
+    // A Switch title's save folder means nothing on another device; a Wine prefix may.
     let prefix_hint = disk
         .prefix
         .as_deref()
+        .filter(|_| crate::emulators::title_id(game).is_none())
         .map(|p| portable::to_portable(p, &scanner.anchors()));
+    let title = scanner.title(game);
     let packed = {
         let blob = blob.clone();
         tokio::task::spawn_blocking(move || pack::pack(&disk.sources, &blob)).await??
@@ -162,6 +180,7 @@ pub async fn snapshot(
         blob_size: packed.blob_size,
         files: packed.files,
         prefix: prefix_hint,
+        title,
     };
     store.enqueue(&meta, &blob).await?;
     store
@@ -209,7 +228,10 @@ pub fn targets(
     meta.files
         .iter()
         .map(|f| {
-            let target = if portable::is_in_prefix(&f.path) {
+            let target = if portable::is_in_save_dir(&f.path) {
+                let dir = prefix.ok_or_else(|| anyhow::anyhow!("no save folder for {} here", meta.game))?;
+                portable::resolve_in_save_dir(&f.path, dir)
+            } else if portable::is_in_prefix(&f.path) {
                 let prefix =
                     prefix.ok_or_else(|| anyhow::anyhow!("no Wine prefix for {} here", meta.game))?;
                 portable::resolve_in_prefix(&f.path, prefix, &users, &fallback)

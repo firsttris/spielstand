@@ -34,15 +34,18 @@ const sources: Record<string, () => string> = {
   ludusavi: m.source_ludusavi,
 };
 
-/** Asks for the game's prefix on one device: one of the candidates, or a folder to type in. */
+/** Asks for the game's prefix on one device: one of the candidates, or a folder to type in.
+ * For a Switch game the candidates are the save folders of the emulators that hold it. */
 function ChoosePrefix({
   game,
   location,
   candidates,
+  emulator = false,
 }: {
   game: string;
   location: GameLocation;
   candidates: string[];
+  emulator?: boolean;
 }) {
   const client = useQueryClient();
   const [prefix, setPrefix] = useState(candidates[0] ?? "");
@@ -60,7 +63,11 @@ function ChoosePrefix({
       }}
     >
       <label htmlFor={id} className="text-[13px] text-muted-foreground">
-        {candidates.length > 0 ? m.problem_several() : m.problem_no_prefix()}
+        {emulator
+          ? m.problem_several_emulators()
+          : candidates.length > 0
+            ? m.problem_several()
+            : m.problem_no_prefix()}
       </label>
       <div className="flex flex-wrap gap-2">
         {candidates.length > 0 ? (
@@ -87,7 +94,7 @@ function ChoosePrefix({
           />
         )}
         <Button type="submit" variant="outline" disabled={save.isPending || !prefix.trim()}>
-          {m.prefix_save()}
+          {emulator ? m.emulator_save() : m.prefix_save()}
         </Button>
       </div>
       {save.error && <p className="text-[13px] text-destructive">{save.error.message}</p>}
@@ -101,6 +108,15 @@ function NeedNote({ game, location, need }: { game: string; location: GameLocati
       return null;
     case "choosePrefix":
       return <ChoosePrefix game={game} location={location} candidates={need.candidates} />;
+    case "chooseEmulator":
+      return <ChoosePrefix game={game} location={location} candidates={need.candidates} emulator />;
+    case "startInEmulator":
+      return (
+        <p className="flex gap-2 text-[13px] text-warning">
+          <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+          {m.problem_start_in_emulator({ emulator: need.emulator })}
+        </p>
+      );
     case "failed":
       return (
         <p className="flex gap-2 text-[13px] text-destructive">

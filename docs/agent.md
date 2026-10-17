@@ -26,6 +26,8 @@ Steam, Heroic, Lutris and the default Wine prefix, it looks in:
   A game found there counts as installed on this PC, so a new PC loads its saves before the first
   start. See [Games in Wine prefixes](how-it-works.md#games-in-wine-prefixes).
 - **A prefix chosen in the web UI** for a game on this PC.
+- **Switch emulators**: Eden, Citron, yuzu, Suyu, Sudachi and Ryujinx, see
+  [Switch emulators](emulators.md).
 
 The PC reports to the server where each game's save is, which tool syncs it besides Spielstand and
 what is unclear; the game's page shows it.

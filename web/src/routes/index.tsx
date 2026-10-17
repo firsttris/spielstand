@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader, Skeleton } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { bytes, relative } from "@/lib/format";
+import { gameName, namesById } from "@/lib/game-name";
 import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/")({ component: Overview });
@@ -57,7 +58,7 @@ function Overview() {
                       games: o.games,
                       when: relative(o.lastVersion.createdAt),
                       device: o.lastVersionDevice ?? "",
-                      game: o.lastVersionGame,
+                      game: namesById(games.data)(o.lastVersionGame),
                     })
                   : m.overview_none()}
               </p>
@@ -104,7 +105,7 @@ function Overview() {
             {conflicts.map((g) => (
               <Button key={g.id} size="sm" variant="outline" asChild>
                 <Link to="/games/$gameId" params={{ gameId: g.id }}>
-                  {g.id}
+                  {gameName(g)}
                 </Link>
               </Button>
             ))}
@@ -130,7 +131,7 @@ function Overview() {
             {overwritten.map((g) => (
               <Button key={g.id} size="sm" variant="outline" asChild>
                 <Link to="/games/$gameId" params={{ gameId: g.id }}>
-                  {g.id}
+                  {gameName(g)}
                 </Link>
               </Button>
             ))}

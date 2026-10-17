@@ -157,6 +157,7 @@ pub fn version(
         blob_size: packed.blob_size,
         files: packed.files,
         prefix: None,
+        title: None,
     };
     (meta, blob)
 }

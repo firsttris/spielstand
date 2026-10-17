@@ -44,9 +44,18 @@ pub fn living_room() -> Value {
                 "steam",
             ),
             hollow,
+            game(
+                super::ZELDA,
+                &format!("{EDEN_SAVES}/0100F2C0115B6000"),
+                Some(&format!("{EDEN_SAVES}/0100F2C0115B6000")),
+                "Eden",
+            ),
         ],
     })
 }
+
+const EDEN_SAVES: &str =
+    "/home/tristan/.local/share/eden/nand/user/save/0000000000000000/5F1AC3E09B7D46A28C0E1F2D3B4A5968";
 
 pub fn steam_deck() -> Value {
     let deck_steam = "/home/deck/.local/share/Steam/steamapps/compatdata";
@@ -57,10 +66,15 @@ pub fn steam_deck() -> Value {
         "kind": "severalPrefixes",
         "candidates": ["/home/deck/Games/Hollow Knight/pfx", "/run/media/deck/SD/Games/Hollow Knight/pfx"],
     });
+    let mut zelda = game(super::ZELDA, "", None, "Ryujinx");
+    zelda["location"] = Value::Null;
+    zelda["source"] = Value::Null;
+    zelda["problem"] = json!({ "kind": "startInEmulator", "emulator": "Ryujinx" });
     json!({
         "stellwerkAgent": false,
         "prefixr": true,
         "games": [
+            zelda,
             game(
                 "ELDEN RING",
                 &format!("{deck_steam}/1245620/pfx/drive_c/users/steamuser/AppData/Roaming/EldenRing/76561198000000000"),

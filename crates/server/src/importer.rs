@@ -175,6 +175,7 @@ fn pack_backup(
     let out = work.join(format!("{}.tar.zst", uuid::Uuid::new_v4()));
     let packed = pack::pack(&sources, &out)?;
     let meta = VersionMeta {
+        title: None,
         id: version_id(game, backup),
         game: game.to_string(),
         parent,

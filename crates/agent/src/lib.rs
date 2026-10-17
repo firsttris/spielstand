@@ -7,6 +7,7 @@ pub mod config;
 pub mod daemon;
 pub mod desktop;
 pub mod disk;
+pub mod emulators;
 pub mod engine;
 pub mod foreign;
 pub mod prefixes;
