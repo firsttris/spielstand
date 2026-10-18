@@ -38,6 +38,8 @@ pub struct Agent {
     /// Poked when saves appeared in a new place (a game's first state, a load): the file
     /// watcher sets itself up again.
     pub places_changed: Arc<tokio::sync::Notify>,
+    /// One lock per game, see [`Agent::lock_game`].
+    games_in_work: Arc<Mutex<BTreeMap<String, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
 pub(crate) fn sync_mode(mode: SaveMode) -> SyncMode {
@@ -68,9 +70,24 @@ impl Agent {
             sources,
             problems: Arc::default(),
             places_changed: Arc::default(),
+            games_in_work: Arc::default(),
         };
         agent.configure_scanner();
         agent
+    }
+
+    /// Held while a flow reads and writes one game's disk and base. The file watcher, the
+    /// server's pushes and the catch-up run side by side; interleaved on one game, a flow can
+    /// decide on heads fetched before another one recorded a change, and fast-forward over it.
+    pub(crate) async fn lock_game(&self, game: &str) -> tokio::sync::OwnedMutexGuard<()> {
+        let lock = self
+            .games_in_work
+            .lock()
+            .unwrap()
+            .entry(game.to_string())
+            .or_default()
+            .clone();
+        lock.lock_owned().await
     }
 
     pub(crate) fn cached(&self, id: &str) -> PathBuf {
