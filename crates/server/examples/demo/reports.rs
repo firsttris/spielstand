@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 fn game(name: &str, location: &str, prefix: Option<&str>, source: &str) -> Value {
     json!({
         "game": name, "location": location, "prefix": prefix, "source": source,
-        "effectiveMode": "sync", "foreignSync": null, "problem": null,
+        "effectiveMode": "sync", "foreignSync": null, "problem": null, "proposed": false,
     })
 }
 
@@ -70,6 +70,14 @@ pub fn steam_deck() -> Value {
     zelda["location"] = Value::Null;
     zelda["source"] = Value::Null;
     zelda["problem"] = json!({ "kind": "startInEmulator", "emulator": "Ryujinx" });
+    let mut pixel = game(
+        super::PIXEL_QUEST,
+        "/home/deck/.local/share/PixelQuest/saves",
+        None,
+        "custom",
+    );
+    pixel["effectiveMode"] = json!("backup");
+    pixel["proposed"] = json!(true);
     json!({
         "stellwerkAgent": false,
         "prefixr": true,
@@ -88,6 +96,7 @@ pub fn steam_deck() -> Value {
                 "prefixr",
             ),
             hollow,
+            pixel,
         ],
     })
 }

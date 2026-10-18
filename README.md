@@ -110,6 +110,10 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
 - **Says why**: each game's page shows where every PC keeps the save and why one is not in step.
 - **Switch emulators**: Eden, Citron, yuzu, Suyu, Sudachi and Ryujinx, one game per title, across
   emulators: play on in Ryujinx on the Deck where Eden on the desktop stopped.
+- **Custom games**: add what the manifest lacks in the web UI, or let
+  [Claude Code](https://claude.com/claude-code) find the saves and propose it: the agent ships a
+  skill and a command line with `--dry-run` and JSON output. A proposal is only backed up on its PC
+  until you take it over.
 
 ### ☁️ Backup
 
@@ -168,6 +172,11 @@ loads each save into that game's prefix on every PC.
 Yes, without setup. Each title is its own game, and a save moves between emulators and profiles:
 from Eden on one PC to Ryujinx on another.
 
+### A game's saves are not found. What now?
+Add it as a custom game: a name and the paths of its saves, in the web UI or with `spielstand-agent
+custom add`. Or run `spielstand-agent skill install` and ask Claude Code on that PC to find what is
+missing. [Custom games and Claude Code](https://firsttris.github.io/spielstand/custom-games.html)
+
 ### Does it run on Windows?
 Not yet: the agent is for Linux. The server runs anywhere Docker runs.
 
@@ -181,6 +190,7 @@ The full documentation, with search, is at **[firsttris.github.io/spielstand](ht
 | [How syncing works](https://firsttris.github.io/spielstand/how-it-works.html) | versions, safety rules, conflicts, retention |
 | [Coming from Ludusavi](https://firsttris.github.io/spielstand/ludusavi.html) | taking over existing backups |
 | [The agent](https://firsttris.github.io/spielstand/agent.html) | commands, Steam launch option, files |
+| [Custom games and Claude Code](https://firsttris.github.io/spielstand/custom-games.html) | games Spielstand does not find on its own, added by hand or by an assistant |
 | [Configuration](https://firsttris.github.io/spielstand/configuration.html) | every setting |
 | [Backup and recovery](https://firsttris.github.io/spielstand/recovery.html) | the mirror, rebuilding a server, password reset |
 | [Development](https://firsttris.github.io/spielstand/development.html) | building, checks, architecture, releases |

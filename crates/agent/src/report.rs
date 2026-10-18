@@ -89,11 +89,19 @@ impl Agent {
             location: common_dir(&files).map(|d| d.display().to_string()),
             source: emulator_name
                 .or_else(|| source(prefix.as_deref(), &prefixr, &folders))
-                .or_else(|| (!files.is_empty()).then(|| "ludusavi".into())),
+                .or_else(|| {
+                    let found_by = if settings::is_custom(&settings, game) {
+                        "custom"
+                    } else {
+                        "ludusavi"
+                    };
+                    (!files.is_empty()).then(|| found_by.into())
+                }),
             prefix: prefix.map(|p| p.display().to_string()),
             effective_mode,
             foreign_sync,
             problem: self.problem(game).or(emulator_problem),
+            proposed: settings::is_proposed(&settings, game),
         }
     }
 

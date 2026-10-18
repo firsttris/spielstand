@@ -15,6 +15,7 @@ use std::{
 
 use chrono::Utc;
 use spielstand_core::{
+    custom,
     pack::{self, Source},
     portable::{self, Anchors},
 };
@@ -44,12 +45,18 @@ pub fn is_staging(path: &Path) -> bool {
         .is_some_and(|n| n.to_string_lossy().ends_with(STAGING))
 }
 
-/// The save files of `game` now, without the agent's own staging files. Once the game's own
+/// The save files of `game` now, without the agent's own staging files and never a file from
+/// the folders that hold keys or passwords, whatever path named it. Once the game's own
 /// prefix holds saves, saves in other prefixes are not the game's: an old prefix it moved out
 /// of, or another install. They are neither backed up as the game's state nor touched.
 fn save_files(scanner: &dyn Scanner, game: &str) -> Vec<PathBuf> {
+    let home = scanner.anchors().home;
     let mut files = scanner.save_files(game);
-    files.retain(|f| !is_staging(f));
+    files.retain(|f| {
+        !is_staging(f)
+            && !custom::is_protected_file(f, &home)
+            && !custom::is_protected_file(&real_path(f), &real_path(&home))
+    });
     if let Some(own) = scanner.own_prefix(game)
         && files.iter().any(|f| in_prefix(f, &own))
     {
@@ -260,6 +267,16 @@ pub fn write(
     let anchors = scanner.anchors();
     let contents = pack::unpack(blob, &meta.files)?;
     let places = targets(meta, &anchors, prefix)?;
+    // Whoever made the version, nothing is written where keys and passwords are.
+    if let Some((_, target)) = places.iter().find(|(_, t)| {
+        custom::is_protected_file(t, &anchors.home)
+            || custom::is_protected_file(&real_path(t), &real_path(&anchors.home))
+    }) {
+        anyhow::bail!(
+            "{} lies in a folder for keys or passwords; nothing was written",
+            target.display()
+        );
+    }
 
     let mut planned = Vec::with_capacity(places.len());
     let staging = (|| -> anyhow::Result<()> {

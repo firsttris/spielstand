@@ -9,6 +9,8 @@ mod reports;
 /// The demo's Switch game: keyed by its title id, named as the emulator knows it.
 const ZELDA: &str = "Switch 0100F2C0115B6000";
 const ZELDA_NAME: &str = "The Legend of Zelda: Tears of the Kingdom";
+/// The demo's custom game, proposed by the Steam Deck.
+const PIXEL_QUEST: &str = "Pixel Quest";
 
 use std::path::Path;
 
@@ -185,6 +187,24 @@ impl Demo {
             .upload_switch(&living, ZELDA_NAME, "zelda-0", h(10), 95)
             .await?;
         self.base(&living, ZELDA, &zelda).await?;
+
+        // Custom games: the Steam Deck proposed one (only backed up there until it is taken
+        // over), and one adds a place to a known game on every PC.
+        self.agent_post(
+            &deck,
+            paths::CUSTOM_GAMES,
+            serde_json::json!({ "name": PIXEL_QUEST, "files": ["<xdgData>/PixelQuest/saves"] }),
+        )
+        .await?;
+        let pixel = self.upload(&deck, PIXEL_QUEST, "pixel-0", None, h(4), 25).await?;
+        self.base(&deck, PIXEL_QUEST, &pixel).await?;
+        self.admin_put(
+            "/api/custom-games",
+            serde_json::json!({ "name": "Hades II", "files": ["<home>/Games/Hades II/saves"], "extend": true }),
+        )
+        .await?;
+        self.agent_post(&deck, paths::REPORT, reports::steam_deck())
+            .await?;
 
         // Wohnzimmer and Steam Deck stay connected; the Arbeitszimmer is switched off.
         Ok(vec![self.connect(&living).await?, self.connect(&deck).await?])

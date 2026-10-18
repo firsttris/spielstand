@@ -204,3 +204,60 @@ async fn the_server_being_away_never_blocks_the_game() {
     assert!(contents.iter().any(|c| c == "before the trip"));
     assert!(contents.iter().any(|c| c == "offline play"));
 }
+
+/// Keys and passwords are never a save: a path that leads there backs nothing up, and a version
+/// holding such a file, whoever made it, is not written.
+#[tokio::test]
+async fn nothing_is_backed_up_from_or_written_into_the_folders_for_keys() {
+    let s = server().await;
+    let leaky = common::pc_with(&s, "leaky", |home| {
+        let mut games = std::collections::BTreeMap::new();
+        games.insert(GAME.to_string(), vec![home.join(".ssh")]);
+        let scanner = spielstand_agent::engine::FakeScanner {
+            anchors: spielstand_core::portable::Anchors {
+                home: home.to_path_buf(),
+                roots: vec![],
+            },
+            games,
+            ..Default::default()
+        };
+        (scanner, spielstand_agent::settings::Sources::default())
+    })
+    .await;
+    std::fs::create_dir_all(leaky.home.join(".ssh")).unwrap();
+    std::fs::write(leaky.home.join(".ssh/id_ed25519"), "SECRET").unwrap();
+    leaky.agent.after_session(GAME, 60).await.unwrap();
+    assert_eq!(s.version_count(GAME).await, 0, "nothing was backed up");
+
+    // A version made by hand with a file for `~/.ssh`.
+    let file = s.dir.path().join("authorized_keys");
+    std::fs::write(&file, "ssh-ed25519 AAAA intruder").unwrap();
+    let blob = s.dir.path().join("v.tar.zst");
+    let packed = spielstand_core::pack::pack(
+        &[spielstand_core::pack::Source {
+            portable: "<home>/.ssh/authorized_keys".into(),
+            path: file,
+        }],
+        &blob,
+    )
+    .unwrap();
+    let meta = spielstand_protocol::VersionMeta {
+        id: spielstand_core::new_version_id(chrono::Utc::now()),
+        game: GAME.into(),
+        parent: None,
+        device: leaky.agent.config.device_id.clone(),
+        created_at: chrono::Utc::now(),
+        trigger: spielstand_protocol::Trigger::Manual,
+        session_seconds: None,
+        content_hash: packed.content_hash,
+        blob_sha256: packed.blob_sha256,
+        blob_size: packed.blob_size,
+        files: packed.files,
+        prefix: None,
+        title: None,
+    };
+    leaky.agent.client.upload(&meta, &blob).await.unwrap();
+    let deck = pc(&s, "deck", false).await;
+    assert!(deck.agent.sync_game(GAME, Mode::Background).await.is_err());
+    assert!(!deck.home.join(".ssh/authorized_keys").exists(), "not written");
+}

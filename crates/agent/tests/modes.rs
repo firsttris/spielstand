@@ -2,9 +2,10 @@
 
 mod common;
 
-use common::{GAME, pc, server, server_contents, syncthing_folder};
-use spielstand_agent::{Mode, Outcome};
-use spielstand_protocol::SaveMode;
+use common::{GAME, pc, pc_with, server, server_contents, syncthing_folder};
+use spielstand_agent::{Mode, Outcome, client::Refused, engine::FakeScanner, settings::Sources};
+use spielstand_core::portable::Anchors;
+use spielstand_protocol::{CustomGame, SaveMode, refusals};
 
 #[tokio::test]
 async fn backup_mode_never_writes_a_save() {
@@ -223,4 +224,75 @@ async fn a_game_that_is_not_installed_here_gets_no_saves() {
     let deck = pc(&s, "deck", false).await;
     let follow = deck.agent.games_to_follow().await;
     assert!(!follow.contains(&"Other Game".to_string()), "{follow:?}");
+}
+
+/// A PC proposes only a game nobody knows yet: the other PCs neither know nor follow it, so
+/// nothing of it reaches their disks until the web UI takes it over. Until then it is only
+/// backed up on the proposing PC.
+#[tokio::test]
+async fn a_proposed_custom_game_stays_on_its_pc_until_it_is_taken_over() {
+    let s = server().await;
+    let desktop = pc(&s, "desktop", false).await;
+    let deck = pc_with(&s, "deck", |home| {
+        let scanner = FakeScanner {
+            anchors: Anchors {
+                home: home.to_path_buf(),
+                roots: vec![],
+            },
+            ..Default::default()
+        };
+        (scanner, Sources::default())
+    })
+    .await;
+    let settings = desktop.agent.client.propose(&proposal(false)).await.unwrap();
+    desktop.agent.apply_settings(settings);
+    assert_eq!(desktop.agent.effective_mode(GAME).0, SaveMode::Backup);
+    assert!(desktop.agent.game_report(GAME).proposed);
+
+    desktop.write_save("desktop 1");
+    desktop.agent.after_session(GAME, 60).await.unwrap();
+    assert!(
+        desktop.agent.client.propose(&proposal(false)).await.is_ok(),
+        "its own proposal, changed"
+    );
+    deck.agent.refresh_settings().await;
+    assert!(!deck.agent.games_to_follow().await.contains(&GAME.to_string()));
+    assert_eq!(deck.read_save(), None, "nothing reached the deck");
+
+    let res = s
+        .admin(reqwest::Method::POST, "/api/custom-games/Elden%20Ring/take-over")
+        .send()
+        .await
+        .unwrap();
+    assert!(res.status().is_success());
+    desktop.agent.refresh_settings().await;
+    assert_eq!(desktop.agent.effective_mode(GAME).0, SaveMode::Sync);
+}
+
+/// More places for a known game, or a name another PC already keeps versions of, would put the
+/// proposal's files into versions every PC loads: the server refuses both.
+#[tokio::test]
+async fn a_known_game_cannot_be_proposed() {
+    let s = server().await;
+    let desktop = pc(&s, "desktop", false).await;
+    let deck = pc(&s, "deck", false).await;
+    deck.write_save("deck 1");
+    deck.agent.after_session(GAME, 60).await.unwrap();
+    for extend in [true, false] {
+        let refused = desktop.agent.client.propose(&proposal(extend)).await.unwrap_err();
+        let refused = refused.downcast_ref::<Refused>().unwrap();
+        assert_eq!(
+            (refused.status, refused.message.as_str()),
+            (409, refusals::KNOWN_GAME)
+        );
+    }
+}
+
+fn proposal(extend: bool) -> CustomGame {
+    CustomGame {
+        name: GAME.into(),
+        files: vec!["<xdgData>/EldenRing".into()],
+        extend,
+        ..Default::default()
+    }
 }

@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 pub mod paths;
+pub mod refusals;
 
 macro_rules! shared {
     ($($item:item)*) => {
@@ -212,6 +213,7 @@ impl EventKind {
             Self::Imported => "imported",
             Self::Overwritten => "overwritten",
             Self::ModeChanged => "modeChanged",
+            Self::CustomGameChanged => "customGameChanged",
             Self::Other => "other",
         }
     }

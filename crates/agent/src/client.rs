@@ -4,9 +4,9 @@ use std::{path::Path, time::Duration};
 
 use futures::StreamExt;
 use spielstand_protocol::{
-    AgentSettings, BaseReport, DeviceReport, HeadsResponse, KnownRequest, KnownResponse, OverwriteReport,
-    PairRequest, PairResponse, PresenceReport, PromoteOutcome, PromoteRequest, UploadOutcome, VersionMeta,
-    paths,
+    AgentSettings, BackupOnlyRequest, BaseReport, CustomGame, DeviceReport, HeadsResponse, KnownRequest,
+    KnownResponse, OverwriteReport, OwnPrefixChoice, PairRequest, PairResponse, PresenceReport,
+    PromoteOutcome, PromoteRequest, UploadOutcome, VersionMeta, paths,
 };
 use tokio::io::AsyncWriteExt;
 
@@ -24,13 +24,32 @@ fn framed_prefix(meta: &VersionMeta) -> anyhow::Result<Vec<u8>> {
     Ok(out)
 }
 
+/// The server refused a request; `message` is its `error` text.
+#[derive(Debug)]
+pub struct Refused {
+    pub status: u16,
+    pub message: String,
+}
+
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "server answered {}: {}", self.status, self.message)
+    }
+}
+
+impl std::error::Error for Refused {}
+
 async fn ok(res: reqwest::Response) -> anyhow::Result<reqwest::Response> {
     if res.status().is_success() {
         return Ok(res);
     }
-    let status = res.status();
+    let status = res.status().as_u16();
     let text = res.text().await.unwrap_or_default();
-    anyhow::bail!("server answered {status}: {text}")
+    let message = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v["error"].as_str().map(str::to_string))
+        .unwrap_or(text);
+    Err(Refused { status, message }.into())
 }
 
 impl Client {
@@ -217,5 +236,45 @@ impl Client {
 
     pub async fn report(&self, report: &DeviceReport) -> anyhow::Result<()> {
         self.post(paths::REPORT, report).await.map(|_| ())
+    }
+
+    /// Proposes a custom game for this device; answers with this device's new settings.
+    pub async fn propose(&self, game: &CustomGame) -> anyhow::Result<AgentSettings> {
+        Ok(self.post(paths::CUSTOM_GAMES, game).await?.json().await?)
+    }
+
+    /// Withdraws a custom game this device proposed.
+    pub async fn withdraw(&self, name: &str) -> anyhow::Result<AgentSettings> {
+        let res = self
+            .http
+            .delete(self.url(&paths::custom_game(name)))
+            .bearer_auth(&self.token)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .await?;
+        Ok(ok(res).await?.json().await?)
+    }
+
+    /// Makes a game only backed up, on every device.
+    pub async fn backup_only(&self, game: &str) -> anyhow::Result<AgentSettings> {
+        let req = BackupOnlyRequest { game: game.into() };
+        Ok(self.post(paths::BACKUP_ONLY, &req).await?.json().await?)
+    }
+
+    /// Chooses the prefix (or a Switch game's save folder) of a game on this device.
+    pub async fn choose_prefix(&self, game: &str, prefix: &str) -> anyhow::Result<AgentSettings> {
+        let req = OwnPrefixChoice {
+            game: game.into(),
+            prefix: prefix.into(),
+        };
+        let res = self
+            .http
+            .put(self.url(paths::PREFIX))
+            .bearer_auth(&self.token)
+            .timeout(Duration::from_secs(30))
+            .json(&req)
+            .send()
+            .await?;
+        Ok(ok(res).await?.json().await?)
     }
 }

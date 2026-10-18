@@ -6,6 +6,8 @@ export type Standing = "current" | "behind" | "diverged" | "none" | "unknown";
 /** What the web UI asks of the person for one device, if anything. */
 export type Need =
   | { kind: "nothing" }
+  /** A custom game this device proposed: only backed up there until it is taken over. */
+  | { kind: "proposed" }
   /** Another program still syncs the saves: Spielstand only backs up there for now. */
   | { kind: "foreignSync"; tool: string; folder: string }
   | { kind: "choosePrefix"; candidates: string[] }
@@ -51,8 +53,10 @@ export function viewLocation(
             ? { kind: "startInEmulator", emulator: problem.emulator }
             : problem?.kind === "failed"
               ? { kind: "failed", message: problem.message }
-              : foreign && !foreign.excluded
-                ? { kind: "foreignSync", tool: foreign.tool, folder: foreign.folder }
-                : { kind: "nothing" };
+              : report?.proposed
+                ? { kind: "proposed" }
+                : foreign && !foreign.excluded
+                  ? { kind: "foreignSync", tool: foreign.tool, folder: foreign.folder }
+                  : { kind: "nothing" };
   return { standing, need, backupOnly: report?.effectiveMode === "backup" };
 }

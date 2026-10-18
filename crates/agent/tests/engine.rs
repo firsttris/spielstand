@@ -165,3 +165,59 @@ fn a_version_is_written_into_a_folder_ludusavi_scans_as_a_whole() {
     );
     assert!(!dirs.trash().exists(), "nothing was taken for a stray save");
 }
+
+/// Custom games from the settings join the manifest: a game it lacks, and more places for one
+/// it knows (Ludusavi's `add_custom_game`); without them it is the manifest again.
+#[test]
+fn custom_games_add_games_and_places_to_the_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("home");
+    let indie = home.join(".local/share/Indie/saves");
+    let moved = home.join("Games/Hades-saves");
+    let known = home.join(".local/share/Hades");
+    for d in [&indie, &moved, &known] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    std::fs::write(indie.join("slot1"), "indie").unwrap();
+    std::fs::write(moved.join("Profile1.sav"), "moved").unwrap();
+    std::fs::write(known.join("Profile2.sav"), "known").unwrap();
+    let manifest: Manifest =
+        serde_yaml::from_str("Hades:\n  files:\n    <home>/.local/share/Hades:\n      tags: [save]\n")
+            .unwrap();
+    let config = Config {
+        roots: vec![Root::new(home.to_string_lossy().to_string(), Store::OtherHome)],
+        ..Config::default()
+    };
+    let engine = Ludusavi::with(config, manifest, StrictPath::from(dir.path().join("app")));
+    assert!(engine.in_manifest("Hades"));
+    assert!(!engine.in_manifest("Indie"));
+
+    engine.set_custom_games(&[
+        spielstand_protocol::CustomGame {
+            name: "Indie".into(),
+            files: vec!["<home>/.local/share/Indie/saves".into()],
+            ..Default::default()
+        },
+        spielstand_protocol::CustomGame {
+            name: "Hades".into(),
+            files: vec!["<home>/Games/Hades-saves".into()],
+            extend: true,
+            ..Default::default()
+        },
+    ]);
+    assert_eq!(engine.save_files("Indie"), vec![indie.join("slot1")]);
+    assert_eq!(
+        engine.save_files("Hades"),
+        vec![known.join("Profile2.sav"), moved.join("Profile1.sav")],
+        "extended, not replaced"
+    );
+    assert!(
+        !engine.in_manifest("Indie"),
+        "a custom game is not the manifest's"
+    );
+    assert_eq!(engine.find_title("indie").as_deref(), Some("Indie"));
+
+    engine.set_custom_games(&[]);
+    assert!(engine.save_files("Indie").is_empty());
+    assert_eq!(engine.save_files("Hades"), vec![known.join("Profile2.sav")]);
+}

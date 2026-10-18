@@ -20,6 +20,7 @@ const eventText: Record<EventKind, () => string> = {
   imported: m.event_imported,
   overwritten: m.event_overwritten,
   modeChanged: m.event_mode_changed,
+  customGameChanged: m.event_custom_game_changed,
   other: m.event_other,
 };
 

@@ -18,7 +18,8 @@ source of truth and Google Drive (or any rclone remote) as the offsite copy.
 - **Sees conflicts instead of guessing.** Played on two PCs without a sync in between? Both states
   are kept and you choose in the web UI. No clock comparisons, no silent overwrites.
 - **Finds the saves for you.** The agent uses the [Ludusavi](https://github.com/mtkennerly/ludusavi)
-  manifest, built from PCGamingWiki, native and through Proton/Wine.
+  manifest, built from PCGamingWiki, native and through Proton/Wine. What it does not find, you add
+  as a custom game, or let Claude Code find and propose.
 - **Takes over your Ludusavi backups.** Old backups, also from Google Drive, become versions with
   their date and comment.
 - **Offsite copy.** Every version is mirrored to Google Drive through rclone; a lost server is
@@ -32,6 +33,7 @@ source of truth and Google Drive (or any rclone remote) as the offsite copy.
 | [How syncing works](how-it-works.md) | versions, the rules that keep saves safe, conflicts, retention |
 | [Coming from Ludusavi](ludusavi.md) | taking over existing backups |
 | [The agent](agent.md) | commands, the Steam launch option, files on the PC |
+| [Custom games and Claude Code](custom-games.md) | games Spielstand does not find on its own, added by hand or by an assistant |
 | [Configuration](configuration.md) | every setting of the server and the agent |
 | [Backup and recovery](recovery.md) | the Google Drive mirror, rebuilding a server, a forgotten password |
 | [Development](development.md) | building, checks, architecture, releases |

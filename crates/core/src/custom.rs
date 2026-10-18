@@ -1,0 +1,385 @@
+//! Custom games: games the manifest lacks, added by hand or by an assistant on a device. A
+//! custom game makes every device back up the files it names, so the paths it may name are
+//! narrow: below a manifest placeholder, starting with a real folder, never into the folders
+//! that hold keys and passwords.
+
+use spielstand_protocol::CustomGame;
+
+/// The placeholders a path may start with (Ludusavi's `src/resource/manifest.rs`,
+/// `placeholder`). `<storeUserId>` and `<osUserName>` may appear further in.
+const ANCHORS: &[&str] = &[
+    "<home>",
+    "<base>",
+    "<root>",
+    "<winAppData>",
+    "<winLocalAppData>",
+    "<winLocalAppDataLow>",
+    "<winDocuments>",
+    "<winPublic>",
+    "<winProgramData>",
+    "<winDir>",
+    "<xdgData>",
+    "<xdgConfig>",
+];
+
+/// Folder names that hold keys, passwords or Spielstand's own token: never a save.
+const PROTECTED: &[&str] = &[
+    ".ssh",
+    ".gnupg",
+    ".password-store",
+    ".pki",
+    ".aws",
+    ".kube",
+    "keyrings",
+    "spielstand",
+];
+
+/// Where those folders are, below the home folder. A path that could reach one of them, or a
+/// folder that holds one (backed up as a whole), is refused; the agent also never backs up a
+/// file there, whatever named it.
+const PROTECTED_PLACES: &[&[&str]] = &[
+    &[".ssh"],
+    &[".gnupg"],
+    &[".password-store"],
+    &[".pki"],
+    &[".aws"],
+    &[".kube"],
+    &[".local", "share", "keyrings"],
+    &[".local", "share", "spielstand"],
+    &[".config", "spielstand"],
+];
+
+/// The folders below the home folder an anchor stands for; `None` for the ones elsewhere (a
+/// Wine prefix, an install folder, a launcher's root).
+fn home_relative(anchor: &str) -> Option<&'static [&'static str]> {
+    match anchor {
+        "<home>" => Some(&[]),
+        "<xdgData>" => Some(&[".local", "share"]),
+        "<xdgConfig>" => Some(&[".config"]),
+        _ => None,
+    }
+}
+
+pub const MAX_PATHS: usize = 32;
+/// What one custom game may hold on a device; more is a path that caught too much.
+pub const MAX_FILES: usize = 10_000;
+pub const MAX_BYTES: u64 = 1 << 30;
+
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum Invalid {
+    #[error("the name is empty")]
+    NoName,
+    #[error("the name is taken by Switch games")]
+    SwitchName,
+    #[error("no paths")]
+    NoPaths,
+    #[error("more than {MAX_PATHS} paths")]
+    TooManyPaths,
+    #[error("{0}: a path starts with a placeholder such as <home> or <winAppData>")]
+    NoAnchor(String),
+    #[error("{0}: the first folder after the placeholder has to be named, not a pattern")]
+    TooBroad(String),
+    #[error("{0}: `..` is not allowed")]
+    Parent(String),
+    #[error("{0}: this folder holds keys or passwords, not saves")]
+    Protected(String),
+    #[error("{0}: an install folder is one folder name")]
+    InstallDir(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum TooMuch {
+    #[error("{0} files, at most {MAX_FILES}")]
+    Files(usize),
+    #[error("{0} bytes, at most {MAX_BYTES}")]
+    Bytes(u64),
+}
+
+fn is_pattern(part: &str) -> bool {
+    part.contains(['*', '?', '[', ']', '{', '}', '<'])
+}
+
+/// `pattern` with placeholders as `*` and character classes as `?`, in lower case.
+fn simple_glob(pattern: &str) -> String {
+    let mut out = String::new();
+    let mut chars = pattern.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '<' => {
+                chars.by_ref().find(|c| *c == '>');
+                out.push('*');
+            }
+            '[' => {
+                chars.by_ref().find(|c| *c == ']');
+                out.push('?');
+            }
+            c => out.extend(c.to_lowercase()),
+        }
+    }
+    out
+}
+
+/// `{a,b}` alternatives, one level deep.
+fn alternatives(pattern: &str) -> Vec<String> {
+    match (pattern.find('{'), pattern.find('}')) {
+        (Some(open), Some(close)) if open < close => pattern[open + 1..close]
+            .split(',')
+            .map(|alt| format!("{}{alt}{}", &pattern[..open], &pattern[close + 1..]))
+            .collect(),
+        _ => vec![pattern.to_string()],
+    }
+}
+
+fn glob_matches(pattern: &[char], name: &[char]) -> bool {
+    match (pattern.first(), name.first()) {
+        (None, None) => true,
+        (Some('*'), _) => {
+            glob_matches(&pattern[1..], name) || (!name.is_empty() && glob_matches(pattern, &name[1..]))
+        }
+        (Some('?'), Some(_)) => glob_matches(&pattern[1..], &name[1..]),
+        (Some(p), Some(n)) if p == n => glob_matches(&pattern[1..], &name[1..]),
+        _ => false,
+    }
+}
+
+/// Whether one path segment (a name, a glob or a placeholder) could be `name`.
+fn may_match(segment: &str, name: &str) -> bool {
+    let name: Vec<char> = name.to_lowercase().chars().collect();
+    alternatives(segment).iter().any(|alt| {
+        let glob: Vec<char> = simple_glob(alt).chars().collect();
+        glob_matches(&glob, &name)
+    })
+}
+
+/// Whether a path of these segments could be `place`, lie inside it or hold it.
+fn may_reach(segments: &[&str], place: &[&str]) -> bool {
+    match (segments.first(), place.first()) {
+        (Some(&"**"), _) | (None, _) | (_, None) => true,
+        (Some(segment), Some(name)) => may_match(segment, name) && may_reach(&segments[1..], &place[1..]),
+    }
+}
+
+fn reaches_protected(anchor: &str, parts: &[&str]) -> bool {
+    let Some(base) = home_relative(anchor) else {
+        return false;
+    };
+    let segments: Vec<&str> = base.iter().copied().chain(parts.iter().copied()).collect();
+    PROTECTED_PLACES.iter().any(|place| may_reach(&segments, place))
+}
+
+/// A file inside one of the protected folders of `home`: never backed up.
+pub fn is_protected_file(file: &std::path::Path, home: &std::path::Path) -> bool {
+    let Ok(rest) = file.strip_prefix(home) else {
+        return false;
+    };
+    let names: Vec<String> = rest
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+        .collect();
+    PROTECTED_PLACES
+        .iter()
+        .any(|place| names.len() >= place.len() && names.iter().zip(place.iter()).all(|(n, p)| n == p))
+}
+
+fn check_path(path: &str) -> Result<(), Invalid> {
+    let invalid = |f: fn(String) -> Invalid| Err(f(path.to_string()));
+    let Some(anchor) = ANCHORS.iter().find(|a| path.starts_with(*a)) else {
+        return invalid(Invalid::NoAnchor);
+    };
+    let rest = &path[anchor.len()..];
+    if !rest.starts_with('/') {
+        return invalid(Invalid::TooBroad);
+    }
+    let parts: Vec<&str> = rest.split('/').filter(|p| !p.is_empty()).collect();
+    if parts.iter().any(|p| *p == ".." || *p == ".") {
+        return invalid(Invalid::Parent);
+    }
+    if parts.first().is_none_or(|p| is_pattern(p)) {
+        return invalid(Invalid::TooBroad);
+    }
+    if parts
+        .iter()
+        .any(|p| PROTECTED.contains(&p.to_lowercase().as_str()))
+        || reaches_protected(anchor, &parts)
+    {
+        return invalid(Invalid::Protected);
+    }
+    Ok(())
+}
+
+/// Switch games are keyed `Switch <title id>`; a custom game must not take such a key.
+fn is_switch_key(name: &str) -> bool {
+    name.strip_prefix("Switch ")
+        .is_some_and(|id| id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+fn clean(items: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    for item in items {
+        let item = item.trim().replace('\\', "/");
+        if !item.is_empty() && !out.contains(&item) {
+            out.push(item);
+        }
+    }
+    out
+}
+
+/// The custom game with its name and paths trimmed, or why it may not be added.
+pub fn check(game: &CustomGame) -> Result<CustomGame, Invalid> {
+    let name = game.name.trim().to_string();
+    if name.is_empty() || name.chars().any(char::is_control) {
+        return Err(Invalid::NoName);
+    }
+    if is_switch_key(&name) {
+        return Err(Invalid::SwitchName);
+    }
+    let files = clean(&game.files);
+    if files.is_empty() {
+        return Err(Invalid::NoPaths);
+    }
+    if files.len() > MAX_PATHS {
+        return Err(Invalid::TooManyPaths);
+    }
+    files.iter().try_for_each(|f| check_path(f))?;
+    let install_dir = clean(&game.install_dir);
+    if let Some(bad) = install_dir
+        .iter()
+        .find(|d| d.contains('/') || *d == "." || *d == "..")
+    {
+        return Err(Invalid::InstallDir(bad.clone()));
+    }
+    Ok(CustomGame {
+        name,
+        files,
+        install_dir,
+        extend: game.extend,
+    })
+}
+
+/// Whether the files a custom game found on a device are few enough to be saves.
+pub fn check_found(sizes: &[u64]) -> Result<(), TooMuch> {
+    if sizes.len() > MAX_FILES {
+        return Err(TooMuch::Files(sizes.len()));
+    }
+    let total: u64 = sizes.iter().sum();
+    if total > MAX_BYTES {
+        return Err(TooMuch::Bytes(total));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn game(files: &[&str]) -> CustomGame {
+        CustomGame {
+            name: " Indie ".into(),
+            files: files.iter().map(|f| f.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_narrow_path_is_taken_trimmed() {
+        let ok = check(&game(&[
+            " <home>/.local/share/Indie/*.sav ",
+            "<winAppData>\\Indie",
+            "<home>/.local/share/Indie/*.sav",
+        ]))
+        .unwrap();
+        assert_eq!(ok.name, "Indie");
+        assert_eq!(
+            ok.files,
+            ["<home>/.local/share/Indie/*.sav", "<winAppData>/Indie"]
+        );
+    }
+
+    #[test]
+    fn paths_that_catch_too_much_are_refused() {
+        let refused = |p: &str| check(&game(&[p])).unwrap_err();
+        assert!(matches!(
+            refused("/home/t/.local/share/Indie"),
+            Invalid::NoAnchor(_)
+        ));
+        assert!(matches!(refused("~/Indie"), Invalid::NoAnchor(_)));
+        assert!(matches!(refused("<home>"), Invalid::TooBroad(_)));
+        assert!(matches!(refused("<home>/"), Invalid::TooBroad(_)));
+        assert!(matches!(refused("<home>/*"), Invalid::TooBroad(_)));
+        assert!(matches!(refused("<home>/**/save"), Invalid::TooBroad(_)));
+        assert!(matches!(refused("<home>/<osUserName>"), Invalid::TooBroad(_)));
+        assert!(matches!(refused("<homeX>/Indie"), Invalid::NoAnchor(_)));
+        assert!(matches!(refused("<home>/Games/../.ssh"), Invalid::Parent(_)));
+        assert!(matches!(refused("<home>/.ssh/id_ed25519"), Invalid::Protected(_)));
+        assert!(matches!(refused("<xdgData>/keyrings"), Invalid::Protected(_)));
+        assert!(matches!(
+            refused("<xdgConfig>/Spielstand/agent.toml"),
+            Invalid::Protected(_)
+        ));
+    }
+
+    /// Patterns and placeholders that could name a protected folder, or a folder above one, are
+    /// refused just like its name.
+    #[test]
+    fn patterns_that_could_reach_keys_are_refused() {
+        let refused = |p: &str| matches!(check(&game(&[p])), Err(Invalid::Protected(_)));
+        for path in [
+            "<home>/.local/share/key*",
+            "<home>/.config/spiel*",
+            "<home>/.local/**",
+            "<home>/.local",
+            "<home>/.config/<game>",
+            "<home>/.local/share/k?yrings/login.keyring",
+            "<home>/.local/share/{saves,keyrings}",
+            "<home>/.SSH/id_ed25519",
+            "<home>/.config/sp[i]elstand",
+        ] {
+            assert!(refused(path), "{path}");
+        }
+        for path in [
+            "<home>/.local/share/Indie/*.sav",
+            "<xdgData>/Indie/**",
+            "<home>/Games/<game>/saves",
+            "<winAppData>/Studio/<game>",
+            "<base>/saves/*",
+        ] {
+            assert!(check(&game(&[path])).is_ok(), "{path}");
+        }
+    }
+
+    #[test]
+    fn files_in_protected_folders_are_recognised() {
+        let home = std::path::Path::new("/home/t");
+        let at = |p: &str| is_protected_file(&home.join(p), home);
+        assert!(at(".ssh/id_ed25519"));
+        assert!(at(".local/share/keyrings/login.keyring"));
+        assert!(at(".config/Spielstand/agent.toml"));
+        assert!(!at(".local/share/Indie/keyrings.sav"));
+        assert!(!at(".local/share/Indie/.ssh"));
+        assert!(!is_protected_file(std::path::Path::new("/srv/.ssh/x"), home));
+    }
+
+    #[test]
+    fn names_and_install_folders_are_checked() {
+        let mut g = game(&["<home>/Indie"]);
+        g.name = "  ".into();
+        assert_eq!(check(&g), Err(Invalid::NoName));
+        g.name = "Switch 0100F2C0115B6000".into();
+        assert_eq!(check(&g), Err(Invalid::SwitchName));
+        g.name = "Switch Sports Fan Game".into();
+        assert!(check(&g).is_ok());
+        g.install_dir = vec!["Games/Indie".into()];
+        assert!(matches!(check(&g), Err(Invalid::InstallDir(_))));
+        assert_eq!(check(&game(&[" "])), Err(Invalid::NoPaths));
+    }
+
+    #[test]
+    fn too_many_or_too_large_files_are_refused() {
+        assert!(check_found(&[10, 20]).is_ok());
+        assert_eq!(
+            check_found(&vec![1; MAX_FILES + 1]),
+            Err(TooMuch::Files(MAX_FILES + 1))
+        );
+        assert_eq!(check_found(&[MAX_BYTES, 1]), Err(TooMuch::Bytes(MAX_BYTES + 1)));
+    }
+}

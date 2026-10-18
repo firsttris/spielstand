@@ -4,7 +4,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
-    sync::{Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use ludusavi::{
@@ -12,13 +12,14 @@ use ludusavi::{
     resource::{
         ResourceFile,
         cache::Cache,
-        config::{Config, Root},
+        config::{self, Config, Integration, Root},
         manifest::{Manifest, Store},
     },
     scan::{Launchers, SteamShortcuts, TitleFinder, scan_game_for_backup},
 };
 use rayon::prelude::*;
 use spielstand_core::portable::Anchors;
+use spielstand_protocol::CustomGame;
 
 pub trait Scanner: Send + Sync {
     fn anchors(&self) -> Anchors;
@@ -64,6 +65,10 @@ pub trait Scanner: Send + Sync {
     }
     /// The manifest's name for a title as another program spells it ("ELDEN RING" → "Elden Ring").
     fn find_title(&self, name: &str) -> Option<String>;
+    /// The custom games from the settings, added to the manifest.
+    fn set_custom_games(&self, _games: &[CustomGame]) {}
+    /// The manifest itself (without custom games) has a game of this name.
+    fn in_manifest(&self, game: &str) -> bool;
 }
 
 /// Lower-case letters and digits only: how titles from different programs are compared when
@@ -84,11 +89,36 @@ fn store_key(store: ludusavi::resource::manifest::Store) -> String {
     }
 }
 
+/// The manifest with the custom games added, and what is derived from it.
+struct Known {
+    manifest: Manifest,
+    title_finder: TitleFinder,
+    custom: Vec<CustomGame>,
+}
+
+/// A custom game as Ludusavi's configuration holds it (`src/resource/config.rs`, `CustomGame`);
+/// `add_custom_game` in `src/resource/manifest.rs` overrides or extends a known game of the
+/// same name.
+fn to_ludusavi(game: &CustomGame) -> config::CustomGame {
+    config::CustomGame {
+        name: game.name.clone(),
+        integration: if game.extend {
+            Integration::Extend
+        } else {
+            Integration::Override
+        },
+        files: game.files.clone(),
+        install_dir: game.install_dir.clone(),
+        ..Default::default()
+    }
+}
+
 pub struct Ludusavi {
     config: Config,
-    manifest: Manifest,
+    /// The manifest as downloaded (with Ludusavi's own extensions), before custom games.
+    base: Manifest,
+    known: RwLock<Arc<Known>>,
     app_dir: StrictPath,
-    title_finder: TitleFinder,
     steam_shortcuts: SteamShortcuts,
     launchers: Mutex<Option<Launchers>>,
     steam_ids: HashMap<u32, String>,
@@ -127,11 +157,16 @@ impl Ludusavi {
         let title_finder = TitleFinder::new(&config, &manifest, Default::default());
         let steam_shortcuts = SteamShortcuts::scan(&title_finder);
         let steam_ids = manifest.map_steam_ids_to_names();
+        let known = Known {
+            manifest: manifest.clone(),
+            title_finder,
+            custom: vec![],
+        };
         Self {
             config,
-            manifest,
+            base: manifest,
+            known: RwLock::new(Arc::new(known)),
             app_dir,
-            title_finder,
             steam_shortcuts,
             launchers: Mutex::new(None),
             steam_ids,
@@ -150,12 +185,17 @@ impl Ludusavi {
         roots
     }
 
+    fn known(&self) -> Arc<Known> {
+        self.known.read().unwrap().clone()
+    }
+
     fn launchers(&self) -> Launchers {
         let mut cached = self.launchers.lock().unwrap();
         cached
             .get_or_insert_with(|| {
-                let games: Vec<String> = self.manifest.0.keys().cloned().collect();
-                Launchers::scan(&self.roots(), &self.manifest, &games, &self.title_finder, None)
+                let known = self.known();
+                let games: Vec<String> = known.manifest.0.keys().cloned().collect();
+                Launchers::scan(&self.roots(), &known.manifest, &games, &known.title_finder, None)
             })
             .clone()
     }
@@ -166,7 +206,8 @@ impl Ludusavi {
     }
 
     fn scan(&self, game: &str, launchers: &Launchers) -> Vec<PathBuf> {
-        let Some(entry) = self.manifest.0.get(game) else {
+        let known = self.known();
+        let Some(entry) = known.manifest.0.get(game) else {
             return vec![];
         };
         let roots = self.roots();
@@ -224,7 +265,8 @@ impl Scanner for Ludusavi {
 
     fn games_with_saves(&self) -> Vec<String> {
         let launchers = self.launchers();
-        let names: Vec<&String> = self.manifest.0.keys().collect();
+        let known = self.known();
+        let names: Vec<&String> = known.manifest.0.keys().collect();
         let mut found: Vec<String> = names
             .par_iter()
             .filter(|name| !self.scan(name, &launchers).is_empty())
@@ -235,7 +277,7 @@ impl Scanner for Ludusavi {
     }
 
     fn steam_cloud(&self, game: &str) -> bool {
-        self.manifest.0.get(game).is_some_and(|g| g.cloud.steam)
+        self.known().manifest.0.get(game).is_some_and(|g| g.cloud.steam)
     }
 
     fn game_for_steam_app(&self, app_id: u32) -> Option<String> {
@@ -246,7 +288,7 @@ impl Scanner for Ludusavi {
         let launchers = self.launchers();
         let roots = self.roots();
         let mut out = BTreeMap::new();
-        for name in self.manifest.0.keys() {
+        for name in self.known().manifest.0.keys() {
             for root in &roots {
                 for found in launchers.get_game(root, name) {
                     if let Some(dir) = found.install_dir.as_ref().and_then(|d| d.as_std_path_buf().ok()) {
@@ -282,9 +324,32 @@ impl Scanner for Ludusavi {
     }
 
     fn find_title(&self, name: &str) -> Option<String> {
-        self.title_finder
+        let known = self.known();
+        known
+            .title_finder
             .find_one_by_normalized_name(name)
-            .or_else(|| self.title_finder.find_one_by_name(name))
+            .or_else(|| known.title_finder.find_one_by_name(name))
+    }
+
+    fn set_custom_games(&self, games: &[CustomGame]) {
+        if self.known().custom == games {
+            return;
+        }
+        let mut manifest = self.base.clone();
+        for game in games {
+            manifest.add_custom_game(to_ludusavi(game));
+        }
+        let title_finder = TitleFinder::new(&self.config, &manifest, Default::default());
+        *self.known.write().unwrap() = Arc::new(Known {
+            manifest,
+            title_finder,
+            custom: games.to_vec(),
+        });
+        self.refresh();
+    }
+
+    fn in_manifest(&self, game: &str) -> bool {
+        self.base.0.contains_key(game)
     }
 }
 
@@ -396,6 +461,9 @@ impl Scanner for FakeScanner {
             .unwrap()
             .get(&normalize_title(game))
             .cloned()
+    }
+    fn in_manifest(&self, game: &str) -> bool {
+        self.games.contains_key(game) || self.profile_saves.contains_key(game)
     }
     fn find_title(&self, name: &str) -> Option<String> {
         let wanted = normalize_title(name);

@@ -1,14 +1,15 @@
+mod commands;
+
 use std::{sync::Arc, time::Instant};
 
 use clap::{Parser, Subcommand};
+use commands::{CustomCommand, SkillCommand, scanner};
 use spielstand_agent::{
     Mode,
     client::Client,
     config::{AgentConfig, Dirs},
     daemon,
     desktop::Desktop,
-    emulators::{Xdg, scanner::WithEmulators},
-    engine::{Ludusavi, Scanner},
     running,
 };
 use spielstand_protocol::PairRequest;
@@ -49,15 +50,40 @@ enum Command {
     /// Sync one game now, or every known game.
     Sync { game: Option<String> },
     /// List the games with saves on this PC.
-    Scan,
+    Scan {
+        #[arg(long)]
+        json: bool,
+    },
     /// Show the pairing and what waits for upload.
-    Status,
-}
-
-fn scanner(dirs: &Dirs) -> anyhow::Result<Arc<dyn Scanner>> {
-    let ludusavi: Arc<dyn Scanner> = Arc::new(Ludusavi::open(&dirs.ludusavi())?);
-    let home = dirs::home_dir().unwrap_or_default();
-    Ok(Arc::new(WithEmulators::new(ludusavi, Xdg::from_env(&home))))
+    Status {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Every game this PC has something to do with: where its saves are, its mode, what is unclear.
+    Games {
+        #[arg(long)]
+        json: bool,
+    },
+    /// One game in detail: its save files, how they are stored, why it is synced or only backed up.
+    Explain {
+        game: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Games the manifest lacks: list, try out and propose, withdraw.
+    Custom {
+        #[command(subcommand)]
+        command: CustomCommand,
+    },
+    /// Choose the Wine prefix (or a Switch game's emulator save folder) of a game on this PC.
+    Choose { game: String, path: std::path::PathBuf },
+    /// Only back a game up, on every PC (syncing again is switched on in the web UI).
+    BackupOnly { game: String },
+    /// The instructions for Claude Code that come with this agent.
+    Skill {
+        #[command(subcommand)]
+        command: SkillCommand,
+    },
 }
 
 async fn pair(dirs: &Dirs, server: String, code: String, name: Option<String>) -> anyhow::Result<()> {
@@ -154,20 +180,13 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Scan => {
-            for game in scanner(&dirs)?.games_with_saves() {
-                println!("{game}");
-            }
-            Ok(())
-        }
-        Command::Status => {
-            let config = AgentConfig::load(&dirs)?;
-            let store = spielstand_agent::store::Store::open(&dirs.db()).await?;
-            println!("Gerät:      {}", config.name);
-            println!("Server:     {}", config.server);
-            println!("Spiele:     {}", store.tracked_games().await?.len());
-            println!("Ausstehend: {}", store.pending_count().await?);
-            Ok(())
-        }
+        Command::Scan { json } => commands::scan(&dirs, json),
+        Command::Status { json } => commands::status(&dirs, json).await,
+        Command::Games { json } => commands::games(&dirs, json).await,
+        Command::Explain { game, json } => commands::explain(&dirs, &game, json).await,
+        Command::Custom { command } => commands::custom_command(&dirs, command).await,
+        Command::Choose { game, path } => commands::choose(&dirs, game, path).await,
+        Command::BackupOnly { game } => commands::backup_only(&dirs, &game).await,
+        Command::Skill { command } => commands::skill_command(command),
     }
 }

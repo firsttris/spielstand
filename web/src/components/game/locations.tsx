@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { CheckIcon, CircleAlertIcon, MonitorIcon } from "lucide-react";
 import { useState } from "react";
 import type { GameDetail } from "@/bindings/GameDetail";
@@ -32,6 +33,7 @@ const sources: Record<string, () => string> = {
   lutris: m.source_lutris,
   wine: m.source_wine,
   ludusavi: m.source_ludusavi,
+  custom: m.source_custom,
 };
 
 /** Asks for the game's prefix on one device: one of the candidates, or a folder to type in.
@@ -122,6 +124,18 @@ function NeedNote({ game, location, need }: { game: string; location: GameLocati
         <p className="flex gap-2 text-[13px] text-destructive">
           <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />{" "}
           {m.problem_failed({ message: need.message })}
+        </p>
+      );
+    case "proposed":
+      return (
+        <p className="flex gap-2 text-[13px] text-warning">
+          <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            {m.loc_proposed()}{" "}
+            <Link to="/settings" className="underline underline-offset-2">
+              {m.loc_proposed_link()}
+            </Link>
+          </span>
         </p>
       );
     case "foreignSync":

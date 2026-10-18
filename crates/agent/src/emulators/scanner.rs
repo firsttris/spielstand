@@ -103,6 +103,14 @@ impl Scanner for WithEmulators {
         self.inner.find_title(name)
     }
 
+    fn set_custom_games(&self, games: &[spielstand_protocol::CustomGame]) {
+        self.inner.set_custom_games(games);
+    }
+
+    fn in_manifest(&self, game: &str) -> bool {
+        title_id(game).is_some() || self.inner.in_manifest(game)
+    }
+
     fn title(&self, game: &str) -> Option<String> {
         title_id(game).and_then(|t| name(&self.installs(), t))
     }

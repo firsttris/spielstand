@@ -4,22 +4,15 @@ import type { Device } from "@/bindings/Device";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { parseLines } from "@/lib/lines";
 import { m } from "@/paraglide/messages";
-
-/** One path per line; blank lines and surrounding spaces do not count. */
-export function parseFolders(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
 
 /** The folders on a device whose sub-folders hold games with their own Wine prefix. */
 export function GameFolders({ device }: { device: Device }) {
   const client = useQueryClient();
   const [text, setText] = useState(device.gameFolders.join("\n"));
   const save = useMutation({
-    mutationFn: () => api.setGameFolders(device.id, parseFolders(text)),
+    mutationFn: () => api.setGameFolders(device.id, parseLines(text)),
     onSuccess: () => client.invalidateQueries({ queryKey: ["devices"] }),
   });
   const id = `folders-${device.id}`;
@@ -36,7 +29,7 @@ export function GameFolders({ device }: { device: Device }) {
       <Textarea
         id={id}
         className="font-mono text-[13px]"
-        rows={Math.max(2, parseFolders(text).length + 1)}
+        rows={Math.max(2, parseLines(text).length + 1)}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="~/Games"

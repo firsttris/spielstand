@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use spielstand_protocol::{AgentSettings, SaveMode, ServerMessage};
 
-use crate::{app::AppState, db};
+use crate::{app::AppState, custom_games, db};
 
 const DEFAULT_MODE: &str = "default_mode";
 
@@ -54,8 +54,14 @@ pub async fn mode_of(state: &AppState, game: &str) -> anyhow::Result<(SaveMode, 
     }
 }
 
-/// `None` lets the game follow the default again.
-pub async fn set_game_mode(state: &AppState, game: &str, mode: Option<SaveMode>) -> anyhow::Result<()> {
+/// `None` lets the game follow the default again. `by` is the device that asked, if not the
+/// web UI.
+pub async fn set_game_mode(
+    state: &AppState,
+    by: Option<&str>,
+    game: &str,
+    mode: Option<SaveMode>,
+) -> anyhow::Result<()> {
     match mode {
         Some(m) => {
             sqlx::query(
@@ -76,7 +82,7 @@ pub async fn set_game_mode(state: &AppState, game: &str, mode: Option<SaveMode>)
     };
     db::event(
         &state.db,
-        None,
+        by,
         Some(game),
         spielstand_protocol::EventKind::ModeChanged,
     )
@@ -132,21 +138,24 @@ pub async fn agent_settings(state: &AppState, device: &str) -> anyhow::Result<Ag
             .bind(device)
             .fetch_all(&state.db)
             .await?;
+    let (custom_games, proposed_games) = custom_games::for_device(state, device).await?;
     Ok(AgentSettings {
         default_mode: default_mode(state).await?,
         game_modes: game_modes(state).await?,
         game_folders: game_folders(state, device).await?,
         prefix_choices: choices.into_iter().collect(),
+        custom_games,
+        proposed_games,
     })
 }
 
-async fn push(state: &AppState, device: &str) -> anyhow::Result<()> {
+pub async fn push(state: &AppState, device: &str) -> anyhow::Result<()> {
     let settings = agent_settings(state, device).await?;
     state.hub.send(device, ServerMessage::Settings { settings });
     Ok(())
 }
 
-async fn push_all(state: &AppState) -> anyhow::Result<()> {
+pub async fn push_all(state: &AppState) -> anyhow::Result<()> {
     let devices: Vec<(String,)> = sqlx::query_as("SELECT id FROM devices WHERE removed_at IS NULL")
         .fetch_all(&state.db)
         .await?;

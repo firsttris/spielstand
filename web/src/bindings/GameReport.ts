@@ -17,10 +17,15 @@ location: string | null,
 prefix: string | null, 
 /**
  * How the saves were found: `steam`, `prefixr`, `gameFolder`, `heroic`, `lutris`,
- * `ludusavi`, or the emulator's name (`Eden`, `Ryujinx`, …) for a Switch game.
+ * `ludusavi`, `custom` (a custom game), or the emulator's name (`Eden`, `Ryujinx`, …)
+ * for a Switch game.
  */
 source: string | null, 
 /**
  * The mode in effect here; `backup` while another tool still syncs the saves.
  */
-effectiveMode: SaveMode, foreignSync: ForeignSync | null, problem: GameProblem | null, };
+effectiveMode: SaveMode, foreignSync: ForeignSync | null, problem: GameProblem | null, 
+/**
+ * A custom game this device proposed: only backed up here until it is taken over.
+ */
+proposed: boolean, };

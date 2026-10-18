@@ -38,6 +38,15 @@ docker/       the image: server, agent binaries, rclone
 - **Uploads** (`server/src/versions.rs`) move the current state with
   `UPDATE games SET head = ? WHERE id = ? AND head IS ?`; anything else becomes a branch.
 - **Writing saves** (`agent/src/disk.rs`) snapshots first, stages, verifies, renames and rolls back.
+- **Custom games** (`core/src/custom.rs` checks the paths, `server/src/custom_games.rs` stores them):
+  a device's proposal goes only into that device's `AgentSettings` and is backed up only there until
+  the web UI takes it over; a device proposes only names nobody knows yet (`custom_games::is_new`),
+  so its versions reach no other device. `disk.rs` never reads or writes a file in the folders for
+  keys and passwords (`custom::is_protected_file`), whatever path or version names it. The agent adds them to Ludusavi's manifest (`Scanner::set_custom_games`).
+- **The command line** for people and assistants: `agent/src/inspect.rs` (what `games` and
+  `explain` show), `custom.rs` (try out, propose), `choices.rs` (prefix, back up only), `text.rs` (the
+  German answers); `main.rs` and `commands.rs` are the binary. `agent/skill/SKILL.md` is the skill
+  for Claude Code that `skill install` writes.
 - **Ludusavi** is used as a library, pinned to one version (`ludusavi = "=0.31.0"`), behind the
   `Scanner` trait in `agent/src/engine.rs` with tests against the real crate.
 
@@ -53,7 +62,7 @@ cargo test -p spielstand-protocol --features ts
 |---|---|
 | `cargo test -p spielstand-core` | decision table, packing, paths, retention (with property tests) |
 | `cargo test -p spielstand-server` | API against a real server: CAS, parallel uploads, auth, mirror, import |
-| `cargo test -p spielstand-agent` | sync scenarios with two PCs, the real Ludusavi scanner |
+| `cargo test -p spielstand-agent` | sync scenarios with two PCs, the real Ludusavi scanner, the command line as a binary |
 | `cargo test -p spielstand-agent --test simulation` | random histories of PCs, outages and restores; `SPIELSTAND_SIM_CASES` sets how many |
 | `cd web && pnpm test` | unit tests (Vitest) |
 | `cd web && pnpm e2e` | Playwright against the demo server |
