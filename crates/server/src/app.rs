@@ -51,6 +51,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::agent::router())
         .merge(routes::ui::router())
         .merge(routes::settings::router())
+        .merge(routes::custom::router())
         .merge(routes::assets::router())
         .layer(DefaultBodyLimit::disable())
         .layer(TraceLayer::new_for_http())

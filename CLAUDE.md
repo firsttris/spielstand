@@ -85,7 +85,8 @@ split it past ~400 lines, a function past ~80. A refactor changes no behaviour.
 - **Back up only never writes.** In that mode the agent records versions but never changes a disk on
   its own; `core::plan` and the simulation check it.
 - The demo server (`cargo run -p spielstand-server --example demo`) has three devices, a conflict,
-  a running game, a device that is behind, an overwritten save and a game in back-up-only mode;
+  a running game, a device that is behind, an overwritten save, a game in back-up-only mode and
+  custom games (one a device proposed);
   password `spielstand-demo`.
 - The stack (`cargo run -p spielstand-server --example stack`, after `cargo build -p
   spielstand-agent`) runs a real server and two real agents for `pnpm e2e:stack`; ports 8469/8470,

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import type { SaveMode } from "@/bindings/SaveMode";
+import { CustomGames } from "@/components/custom-games";
 import { modeText } from "@/components/mode-label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +64,8 @@ function Settings() {
           </Select>
         )}
       </Card>
+
+      <CustomGames />
 
       <Card>
         <CardHeader>

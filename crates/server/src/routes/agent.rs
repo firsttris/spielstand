@@ -9,14 +9,14 @@ use axum::{
     },
     http::header,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post, put},
 };
 use futures::{SinkExt, StreamExt};
 use spielstand_protocol::EventKind;
 use spielstand_protocol::{
-    AgentMessage, AgentSettings, BaseReport, DeviceReport, HeadsResponse, KnownRequest, KnownResponse,
-    OverwriteReport, PairRequest, PairResponse, PresenceReport, PromoteOutcome, PromoteRequest,
-    ServerMessage, UploadOutcome, VersionMeta, paths,
+    AgentMessage, AgentSettings, BackupOnlyRequest, BaseReport, CustomGame, DeviceReport, HeadsResponse,
+    KnownRequest, KnownResponse, OverwriteReport, OwnPrefixChoice, PairRequest, PairResponse, PresenceReport,
+    PromoteOutcome, PromoteRequest, SaveMode, ServerMessage, UploadOutcome, VersionMeta, paths,
 };
 use tokio_util::io::ReaderStream;
 
@@ -24,7 +24,9 @@ use crate::{
     alerts,
     app::{AppState, MAX_PACKAGE},
     auth::{self, Agent},
-    blobs, db,
+    blobs,
+    custom_games::{self, By},
+    db,
     error::{ApiResult, AppError},
     framing, known, modes, presence, reports,
     versions::{self, NewVersion},
@@ -44,6 +46,10 @@ pub fn router() -> Router<AppState> {
         .route(paths::OVERWRITES, post(overwritten))
         .route(paths::SETTINGS, get(settings))
         .route(paths::REPORT, post(report))
+        .route(paths::CUSTOM_GAMES, post(propose))
+        .route("/api/agent/custom-games/{name}", delete(withdraw))
+        .route(paths::BACKUP_ONLY, post(backup_only))
+        .route(paths::PREFIX, put(own_prefix))
         .route(paths::WS, get(ws))
 }
 
@@ -71,6 +77,54 @@ async fn settings(State(state): State<AppState>, agent: Agent) -> ApiResult<Json
 
 async fn report(State(state): State<AppState>, agent: Agent, Json(req): Json<DeviceReport>) -> ApiResult<()> {
     Ok(reports::store(&state, &agent.device_id, &req).await?)
+}
+
+/// What a device may decide for itself: propose a custom game (in effect only there until
+/// it is taken over), withdraw its proposal, choose its own prefix, and make a game only
+/// backed up. Syncing a game again, and anything for other devices, is the web UI's.
+async fn propose(
+    State(state): State<AppState>,
+    agent: Agent,
+    Json(game): Json<CustomGame>,
+) -> ApiResult<Json<AgentSettings>> {
+    custom_games::put(&state, By::Device(&agent.device_id), &game).await?;
+    Ok(Json(modes::agent_settings(&state, &agent.device_id).await?))
+}
+
+async fn withdraw(
+    State(state): State<AppState>,
+    agent: Agent,
+    Path(name): Path<String>,
+) -> ApiResult<Json<AgentSettings>> {
+    custom_games::remove(&state, By::Device(&agent.device_id), &name).await?;
+    Ok(Json(modes::agent_settings(&state, &agent.device_id).await?))
+}
+
+async fn backup_only(
+    State(state): State<AppState>,
+    agent: Agent,
+    Json(req): Json<BackupOnlyRequest>,
+) -> ApiResult<Json<AgentSettings>> {
+    if req.game.trim().is_empty() {
+        return Err(AppError::BadRequest("no game".into()));
+    }
+    modes::set_game_mode(&state, Some(&agent.device_id), &req.game, Some(SaveMode::Backup)).await?;
+    Ok(Json(modes::agent_settings(&state, &agent.device_id).await?))
+}
+
+async fn own_prefix(
+    State(state): State<AppState>,
+    agent: Agent,
+    Json(req): Json<OwnPrefixChoice>,
+) -> ApiResult<Json<AgentSettings>> {
+    let prefix = req.prefix.trim();
+    if req.game.trim().is_empty() || !prefix.starts_with(['/', '~']) {
+        return Err(AppError::BadRequest(
+            "a game and an absolute prefix path are needed".into(),
+        ));
+    }
+    modes::set_prefix_choice(&state, &agent.device_id, &req.game, prefix).await?;
+    Ok(Json(modes::agent_settings(&state, &agent.device_id).await?))
 }
 
 async fn pair(State(state): State<AppState>, Json(req): Json<PairRequest>) -> ApiResult<Json<PairResponse>> {

@@ -46,7 +46,7 @@ async fn game_mode(
     Path(game): Path<String>,
     Json(req): Json<GameModeRequest>,
 ) -> ApiResult<()> {
-    Ok(modes::set_game_mode(&state, &game, req.mode).await?)
+    Ok(modes::set_game_mode(&state, None, &game, req.mode).await?)
 }
 
 async fn known_device(state: &AppState, id: &str) -> ApiResult<()> {

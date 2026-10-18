@@ -29,6 +29,58 @@ shared! {
         pub game_folders: Vec<String>,
         /// Game → the prefix chosen in the web UI when several were found on this device.
         pub prefix_choices: BTreeMap<String, String>,
+        /// Games added to the manifest by hand: the ones for every device and the ones this
+        /// device proposed.
+        #[serde(default)]
+        pub custom_games: Vec<CustomGame>,
+        /// The custom games this device proposed that are not yet taken over for every device;
+        /// they are only backed up here.
+        #[serde(default)]
+        pub proposed_games: Vec<String>,
+    }
+
+    /// A game the Ludusavi manifest lacks, or more places for one it knows. Paths use the
+    /// manifest's placeholders (`<home>/.local/share/Game/*.sav`, `<winAppData>/Game`).
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct CustomGame {
+        pub name: String,
+        /// Files or folders (globs allowed) that hold the saves.
+        pub files: Vec<String>,
+        /// Folder names the game is installed as, to recognise it as installed and running.
+        #[serde(default)]
+        pub install_dir: Vec<String>,
+        /// Adds the paths to the manifest's game of this name instead of defining a game.
+        #[serde(default)]
+        pub extend: bool,
+    }
+
+    /// A custom game as the web UI lists it: for every device, or proposed by one device and
+    /// only in effect there until it is taken over.
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct CustomGameRow {
+        pub game: CustomGame,
+        pub proposed_by: Option<String>,
+        pub proposed_by_name: Option<String>,
+        pub changed_at: DateTime<Utc>,
+    }
+
+    /// A device asks for one game to be only backed up (the safe direction; syncing again is
+    /// switched on in the web UI).
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct BackupOnlyRequest {
+        pub game: String,
+    }
+
+    /// A device chooses the prefix (or a Switch game's emulator save folder) of a game for
+    /// itself.
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct OwnPrefixChoice {
+        pub game: String,
+        pub prefix: String,
     }
 
     /// "Is this content already a version, and is it newer than what this device had?"
@@ -97,12 +149,16 @@ shared! {
         /// The game's Wine prefix on this device.
         pub prefix: Option<String>,
         /// How the saves were found: `steam`, `prefixr`, `gameFolder`, `heroic`, `lutris`,
-        /// `ludusavi`, or the emulator's name (`Eden`, `Ryujinx`, …) for a Switch game.
+        /// `ludusavi`, `custom` (a custom game), or the emulator's name (`Eden`, `Ryujinx`, …)
+        /// for a Switch game.
         pub source: Option<String>,
         /// The mode in effect here; `backup` while another tool still syncs the saves.
         pub effective_mode: SaveMode,
         pub foreign_sync: Option<ForeignSync>,
         pub problem: Option<GameProblem>,
+        /// A custom game this device proposed: only backed up here until it is taken over.
+        #[serde(default)]
+        pub proposed: bool,
     }
 
     #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

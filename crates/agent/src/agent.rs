@@ -111,12 +111,15 @@ impl Agent {
     }
 
     /// The mode in effect: while another program still syncs a game's saves, Spielstand only
-    /// backs them up, so two programs never write the same file.
+    /// backs them up, so two programs never write the same file; a custom game this device
+    /// proposed is only backed up until it is taken over in the web UI.
     pub fn effective_mode(&self, game: &str) -> (SaveMode, Option<ForeignSync>) {
         let files = self.scanner.save_files(game);
         let foreign = foreign::check(&files, self.sources.stellwerk_installed());
+        let proposed = settings::is_proposed(&self.settings.read().unwrap(), game);
         let mode = match (self.configured_mode(game), &foreign) {
             (SaveMode::Sync, Some(f)) if !f.excluded => SaveMode::Backup,
+            (SaveMode::Sync, _) if proposed => SaveMode::Backup,
             (mode, _) => mode,
         };
         (mode, foreign)

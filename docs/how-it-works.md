@@ -46,8 +46,9 @@ Each game has a mode; new games get the default mode from the settings, a game's
   you want versions of but play on one PC. Loading a version by hand from the web UI still works.
 
 A game set to *Synchronize* is backed up only on a PC whose save lies in a folder that another
-program keeps in step (see [Other sync programs](#other-sync-programs)); the web UI says so on that
-PC's row.
+program keeps in step (see [Other sync programs](#other-sync-programs)), and on the PC that proposed
+a [custom game](custom-games.md#from-a-pc-proposals) until it is taken over in the web UI; the web
+UI says so on that PC's row.
 
 ## Loading a version
 

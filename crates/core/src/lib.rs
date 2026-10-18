@@ -1,5 +1,6 @@
 //! The rules Spielstand never breaks, as pure functions shared by server and agent.
 
+pub mod custom;
 pub mod decide;
 pub mod pack;
 pub mod plan;

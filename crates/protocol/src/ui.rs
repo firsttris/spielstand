@@ -125,6 +125,8 @@ shared! {
         /// Another tool replaced a newer save with an older one on a device.
         Overwritten,
         ModeChanged,
+        /// A custom game was added, changed, taken over or removed.
+        CustomGameChanged,
         /// An event this version does not know (written by a newer one).
         #[serde(other)]
         Other,

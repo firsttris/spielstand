@@ -4,6 +4,7 @@ pub mod alerts;
 pub mod app;
 pub mod auth;
 pub mod blobs;
+pub mod custom_games;
 pub mod db;
 pub mod error;
 pub mod framing;

@@ -224,3 +224,54 @@ async fn a_game_that_is_not_installed_here_gets_no_saves() {
     let follow = deck.agent.games_to_follow().await;
     assert!(!follow.contains(&"Other Game".to_string()), "{follow:?}");
 }
+
+/// A custom game a PC proposed is only backed up there: a newer state from another PC is not
+/// loaded until the web UI takes the game over for every PC.
+#[tokio::test]
+async fn a_proposed_custom_game_is_only_backed_up_until_it_is_taken_over() {
+    let s = server().await;
+    let desktop = pc(&s, "desktop", false).await;
+    let deck = pc(&s, "deck", false).await;
+    let game = spielstand_protocol::CustomGame {
+        name: GAME.into(),
+        files: vec!["<xdgData>/EldenRing".into()],
+        ..Default::default()
+    };
+    let settings = desktop.agent.client.propose(&game).await.unwrap();
+    desktop.agent.apply_settings(settings);
+    assert_eq!(desktop.agent.effective_mode(GAME).0, SaveMode::Backup);
+    assert!(desktop.agent.game_report(GAME).proposed);
+    assert_eq!(
+        deck.agent.effective_mode(GAME).0,
+        SaveMode::Sync,
+        "not the deck's proposal"
+    );
+
+    desktop.write_save("desktop 1");
+    desktop.agent.after_session(GAME, 60).await.unwrap();
+    deck.agent.sync_game(GAME, Mode::Background).await.unwrap();
+    deck.write_save("deck 2");
+    deck.agent.after_session(GAME, 60).await.unwrap();
+
+    desktop.agent.sync_game(GAME, Mode::Background).await.unwrap();
+    assert_eq!(
+        desktop.read_save().as_deref(),
+        Some("desktop 1"),
+        "only backed up"
+    );
+
+    let res = s
+        .admin(reqwest::Method::POST, "/api/custom-games/Elden%20Ring/take-over")
+        .send()
+        .await
+        .unwrap();
+    assert!(res.status().is_success());
+    desktop.agent.refresh_settings().await;
+    assert_eq!(desktop.agent.effective_mode(GAME).0, SaveMode::Sync);
+    desktop.agent.sync_game(GAME, Mode::Background).await.unwrap();
+    assert_eq!(
+        desktop.read_save().as_deref(),
+        Some("deck 2"),
+        "taken over: synced"
+    );
+}

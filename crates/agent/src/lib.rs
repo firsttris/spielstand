@@ -2,20 +2,25 @@
 //! uploads to the server and, for games it synchronises, loads newer states from other PCs.
 
 pub mod agent;
+pub mod choices;
 pub mod client;
 pub mod config;
+pub mod custom;
 pub mod daemon;
 pub mod desktop;
 pub mod disk;
 pub mod emulators;
 pub mod engine;
 pub mod foreign;
+pub mod inspect;
 pub mod prefixes;
 pub mod report;
 pub mod running;
 pub mod settings;
+pub mod skill;
 pub mod store;
 pub mod sync;
+pub mod text;
 pub mod watch;
 
 use std::sync::Arc;

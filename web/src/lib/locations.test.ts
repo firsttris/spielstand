@@ -11,6 +11,7 @@ const report = (r: Partial<GameReport> = {}): GameReport => ({
   effectiveMode: "sync",
   foreignSync: null,
   problem: null,
+  proposed: false,
   ...r,
 });
 
@@ -71,6 +72,14 @@ describe("viewLocation", () => {
     expect(view.need).toEqual({ kind: "foreignSync", tool: "stellwerk", folder: "/home/deck/Games" });
     const excluded = report({ foreignSync: { tool: "stellwerk", folder: "/g", excluded: true } });
     expect(viewLocation(at({ report: excluded })).need).toEqual({ kind: "nothing" });
+  });
+
+  it("says a custom game this device proposed is only backed up until it is taken over", () => {
+    const view = viewLocation(
+      at({ report: report({ effectiveMode: "backup", source: "custom", proposed: true }) }),
+    );
+    expect(view.backupOnly).toBe(true);
+    expect(view.need).toEqual({ kind: "proposed" });
   });
 
   it("puts a failed load before everything else but a missing prefix", () => {

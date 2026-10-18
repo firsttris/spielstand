@@ -28,6 +28,8 @@ Steam, Heroic, Lutris and the default Wine prefix, it looks in:
 - **A prefix chosen in the web UI** for a game on this PC.
 - **Switch emulators**: Eden, Citron, yuzu, Suyu, Sudachi and Ryujinx, see
   [Switch emulators](emulators.md).
+- **Custom games**: games the manifest lacks, or more places for one it knows, added in the web UI
+  or proposed from a PC, see [Custom games and Claude Code](custom-games.md).
 
 The PC reports to the server where each game's save is, which tool syncs it besides Spielstand and
 what is unclear; the game's page shows it.
@@ -38,10 +40,19 @@ what is unclear; the game's page shows it.
 |---|---|
 | `spielstand-agent status` | pairing, server, what waits for upload |
 | `spielstand-agent scan` | the games with saves on this PC |
+| `spielstand-agent games` | every game this PC has something to do with: where its saves are, its mode, what is unclear |
+| `spielstand-agent explain GAME` | one game: its save files, how they are stored, why it is synced or only backed up |
+| `spielstand-agent custom list` / `add` / `remove` | [custom games](custom-games.md): list, try out (`--dry-run`) and propose, withdraw |
+| `spielstand-agent choose GAME PATH` | the game's Wine prefix (or emulator save folder) on this PC, when several fit |
+| `spielstand-agent backup-only GAME` | back a game up only, on every PC |
+| `spielstand-agent skill install` | the skill for [Claude Code](custom-games.md#with-claude-code) |
 | `spielstand-agent sync [game]` | sync one game, or all, now |
 | `spielstand-agent launch [--game NAME] %command%` | Steam launch option: load before, back up after |
 | `spielstand-agent pair --server URL --code CODE [--name NAME]` | pair again (the install script does this) |
 | `spielstand-agent run` | the background service itself |
+
+`status`, `scan`, `games`, `explain` and `custom list` and `custom add` print JSON with `--json`, for
+scripts and assistants.
 
 The service: `systemctl --user status spielstand-agent`, logs with
 `journalctl --user -u spielstand-agent`.

@@ -1,4 +1,6 @@
 import type { Activity } from "@/bindings/Activity";
+import type { CustomGame } from "@/bindings/CustomGame";
+import type { CustomGameRow } from "@/bindings/CustomGameRow";
 import type { Device } from "@/bindings/Device";
 import type { DeviceSettings } from "@/bindings/DeviceSettings";
 import type { GameDetail } from "@/bindings/GameDetail";
@@ -77,4 +79,9 @@ export const api = {
   setGameFolders: (device: string, gameFolders: string[]) =>
     call<DeviceSettings>("PUT", `/api/devices/${enc(device)}/settings`, { gameFolders }),
   dismissAlert: (id: number) => call<void>("POST", `/api/alerts/${id}/dismiss`),
+  customGames: () => call<CustomGameRow[]>("GET", "/api/custom-games"),
+  /** Adds or changes a custom game for every device (a device's proposal is taken over). */
+  putCustomGame: (game: CustomGame) => call<CustomGame>("PUT", "/api/custom-games", game),
+  takeOverCustomGame: (name: string) => call<void>("POST", `/api/custom-games/${enc(name)}/take-over`),
+  removeCustomGame: (name: string) => call<void>("DELETE", `/api/custom-games/${enc(name)}`),
 };

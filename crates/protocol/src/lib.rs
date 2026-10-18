@@ -212,6 +212,7 @@ impl EventKind {
             Self::Imported => "imported",
             Self::Overwritten => "overwritten",
             Self::ModeChanged => "modeChanged",
+            Self::CustomGameChanged => "customGameChanged",
             Self::Other => "other",
         }
     }

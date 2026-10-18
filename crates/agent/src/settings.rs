@@ -67,6 +67,16 @@ pub fn mode_of(settings: &AgentSettings, game: &str) -> SaveMode {
         .unwrap_or(settings.default_mode)
 }
 
+/// A custom game this device proposed: only backed up here until it is taken over.
+pub fn is_proposed(settings: &AgentSettings, game: &str) -> bool {
+    settings.proposed_games.iter().any(|g| g == game)
+}
+
+/// A game the manifest lacks, defined as a custom game (not one that only extends a known one).
+pub fn is_custom(settings: &AgentSettings, game: &str) -> bool {
+    settings.custom_games.iter().any(|g| g.name == game && !g.extend)
+}
+
 pub fn game_folders(settings: &AgentSettings, home: &Path) -> Vec<PathBuf> {
     settings
         .game_folders
@@ -153,9 +163,10 @@ fn own_prefixes(
         .collect()
 }
 
-/// Points the scanner at the prefixes and game folders of `settings`, and tells it which
-/// prefix is each game's own.
+/// Adds the custom games of `settings` to the scanner's manifest, points it at the prefixes and
+/// game folders, and tells it which prefix is each game's own.
 pub fn configure(scanner: &dyn Scanner, settings: &AgentSettings, sources: &Sources, home: &Path) {
+    scanner.set_custom_games(&settings.custom_games);
     let own = own_prefixes(scanner, settings, sources, home);
     scanner.configure(
         wine_prefixes(settings, sources, home),
