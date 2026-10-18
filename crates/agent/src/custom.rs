@@ -25,7 +25,7 @@ pub struct Preview {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Refusal {
     Invalid(Invalid),
-    /// The manifest knows the game; its places are extended, not replaced.
+    /// The manifest knows the game, or it extends one: a PC proposes only new games.
     InManifest,
     /// The paths match no file on this disk.
     Empty,
@@ -73,7 +73,9 @@ async fn overlap(agent: &Agent, name: &str, files: &[FoundFile]) -> Option<(Stri
 /// holds the settings' custom games again afterwards.
 pub async fn preview(agent: &Agent, game: &CustomGame, allow_empty: bool) -> Result<Preview, Refusal> {
     let game = custom::check(game).map_err(Refusal::Invalid)?;
-    if !game.extend && agent.scanner.in_manifest(&game.name) {
+    // Only new games: more places for a known one are added in the web UI (see the server's
+    // `custom_games::is_new`).
+    if game.extend || agent.scanner.in_manifest(&game.name) {
         return Err(Refusal::InManifest);
     }
     agent.scanner.set_custom_games(&with(agent, &game));

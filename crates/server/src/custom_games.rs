@@ -4,7 +4,7 @@
 //! files it chose.
 
 use spielstand_core::custom;
-use spielstand_protocol::{CustomGame, CustomGameRow, EventKind};
+use spielstand_protocol::{CustomGame, CustomGameRow, EventKind, refusals};
 
 use crate::{app::AppState, db, error::AppError, modes};
 
@@ -78,13 +78,31 @@ async fn may_change(state: &AppState, by: By<'_>, name: &str) -> Result<(), AppE
     match owner(state, name).await? {
         None => Ok(()),
         Some(Some(owner)) if owner == device => Ok(()),
-        Some(None) => Err(AppError::Conflict(
-            "this custom game is in effect on every device; change it in the web UI".into(),
-        )),
-        Some(Some(_)) => Err(AppError::Conflict(
-            "another device proposed a custom game of this name".into(),
-        )),
+        Some(None) => Err(AppError::Conflict(refusals::EVERY_DEVICE.into())),
+        Some(Some(_)) => Err(AppError::Conflict(refusals::OTHER_DEVICE.into())),
     }
+}
+
+/// A device proposes only games nobody knows yet: not more places for a known game, and not
+/// a name with versions, except its own proposal's. A proposal's versions then reach no other
+/// device, whose manifest lacks the game, until the web UI takes it over.
+async fn is_new(state: &AppState, by: By<'_>, game: &CustomGame) -> Result<(), AppError> {
+    let By::Device(device) = by else {
+        return Ok(());
+    };
+    let own_proposal = owner(state, &game.name).await?.flatten().as_deref() == Some(device);
+    let (others, own): (i64, i64) = sqlx::query_as(
+        "SELECT COALESCE(SUM(device != ?), 0), COALESCE(SUM(device = ?), 0) FROM versions WHERE game = ?",
+    )
+    .bind(device)
+    .bind(device)
+    .bind(&game.name)
+    .fetch_one(&state.db)
+    .await?;
+    if game.extend || others > 0 || (own > 0 && !own_proposal) {
+        return Err(AppError::Conflict(refusals::KNOWN_GAME.into()));
+    }
+    Ok(())
 }
 
 /// Settings go to every device: a change for every device concerns all of them, and a
@@ -109,6 +127,7 @@ async fn changed(state: &AppState, by: By<'_>, name: &str) -> anyhow::Result<()>
 pub async fn put(state: &AppState, by: By<'_>, game: &CustomGame) -> Result<CustomGame, AppError> {
     let game = custom::check(game).map_err(|e| AppError::BadRequest(e.to_string()))?;
     may_change(state, by, &game.name).await?;
+    is_new(state, by, &game).await?;
     sqlx::query(
         "INSERT INTO custom_games (name, definition, proposed_by, changed_at) VALUES (?, ?, ?, ?)
          ON CONFLICT (name) DO UPDATE SET definition = excluded.definition,

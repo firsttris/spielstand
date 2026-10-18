@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 pub mod paths;
+pub mod refusals;
 
 macro_rules! shared {
     ($($item:item)*) => {

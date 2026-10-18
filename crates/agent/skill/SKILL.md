@@ -55,16 +55,18 @@ In `games --json` each game has:
    | `<storeUserId>`, `<osUserName>` | a launcher's user id, the user name (inside a path) |
 
    `*` and `**` are allowed after the first folder. A path must start with a placeholder and
-   name a real folder next: `<home>/*` or `<home>/.ssh` are refused.
+   name a real folder next: `<home>/*` is refused, and so is anything that could reach the
+   folders for keys and passwords (`<home>/.ssh`, `<home>/.local/share/key*`, `<home>/.local`).
 4. Try it — this changes nothing:
 
    ```sh
    spielstand-agent custom add --name "Game Name" --path "<xdgData>/GameName/saves" --dry-run --json
    ```
 
-   Read the list of files. Narrow the path until only saves are left. If the manifest already
-   knows the game (it says so), the saves are elsewhere on this PC: add `--extend` to add places
-   to the known game.
+   Read the list of files. Narrow the path until only saves are left. A PC proposes only games
+   nobody knows yet: if the manifest or the server already knows the game (it says so), its saves
+   are elsewhere on this PC. Then tell the user the path; they add it in the web UI
+   (**Settings → Custom games**, kind *Adds to a game of the manifest*).
 5. Show the user the files and ask. Then the same command without `--dry-run`.
 6. `spielstand-agent explain "Game Name"` shows it after the service picked it up (a few seconds).
 

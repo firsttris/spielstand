@@ -40,7 +40,9 @@ docker/       the image: server, agent binaries, rclone
 - **Writing saves** (`agent/src/disk.rs`) snapshots first, stages, verifies, renames and rolls back.
 - **Custom games** (`core/src/custom.rs` checks the paths, `server/src/custom_games.rs` stores them):
   a device's proposal goes only into that device's `AgentSettings` and is backed up only there until
-  the web UI takes it over. The agent adds them to Ludusavi's manifest (`Scanner::set_custom_games`).
+  the web UI takes it over; a device proposes only names nobody knows yet (`custom_games::is_new`),
+  so its versions reach no other device. `disk.rs` never reads or writes a file in the folders for
+  keys and passwords (`custom::is_protected_file`), whatever path or version names it. The agent adds them to Ludusavi's manifest (`Scanner::set_custom_games`).
 - **The command line** for people and assistants: `agent/src/inspect.rs` (what `games` and
   `explain` show), `custom.rs` (try out, propose), `choices.rs` (prefix, back up only), `text.rs` (the
   German answers); `main.rs` and `commands.rs` are the binary. `agent/skill/SKILL.md` is the skill

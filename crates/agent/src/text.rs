@@ -1,7 +1,7 @@
 //! The command line's answers for people, in German; `--json` prints the data instead.
 
 use spielstand_core::custom::{Invalid, MAX_BYTES, MAX_FILES, MAX_PATHS, TooMuch};
-use spielstand_protocol::{CustomGame, GameProblem, SaveMode};
+use spielstand_protocol::{CustomGame, GameProblem, SaveMode, refusals};
 
 use crate::{
     choices,
@@ -9,6 +9,11 @@ use crate::{
     custom::{Preview, Refusal},
     inspect::{Explained, FoundFile, GameView, Games},
 };
+
+/// A PC proposes only new games; more places for a known one are added in the web UI.
+const KNOWN_GAME: &str = "Dieses Spiel ist schon bekannt (im Manifest oder mit Versionen auf dem Server). Ein PC schlägt \
+     nur neue Spiele vor; liegen die Spielstände hier woanders, trage den Ort in der Web-UI ein \
+     (Einstellungen → Eigene Spiele, „Ergänzt ein Spiel des Manifests“).";
 
 fn mode(mode: SaveMode) -> &'static str {
     match mode {
@@ -219,11 +224,7 @@ fn invalid(e: &Invalid) -> String {
 pub fn refusal(r: &Refusal) -> String {
     match r {
         Refusal::Invalid(e) => invalid(e),
-        Refusal::InManifest => {
-            "Das Manifest kennt dieses Spiel schon. Liegen die Spielstände hier woanders, \
-             ergänze es mit --extend."
-                .into()
-        }
+        Refusal::InManifest => KNOWN_GAME.into(),
         Refusal::Empty => "Die Pfade passen auf keine Datei auf diesem PC. Gibt es noch keinen Spielstand, \
              erlaubt --allow-empty das Eintragen trotzdem."
             .into(),
@@ -253,10 +254,13 @@ pub fn choice_refusal(r: &choices::Refusal) -> String {
 /// A refusal from the server, in the words of the command line.
 pub fn refused(r: &Refused) -> String {
     match r.status {
-        409 if r.message.contains("every device") => {
+        409 if r.message == refusals::EVERY_DEVICE => {
             "Dieses eigene Spiel gilt für alle PCs; ändern oder entfernen lässt es sich in der Web-UI.".into()
         }
-        409 => "Ein anderer PC hat schon ein eigenes Spiel dieses Namens vorgeschlagen.".into(),
+        409 if r.message == refusals::OTHER_DEVICE => {
+            "Ein anderer PC hat schon ein eigenes Spiel dieses Namens vorgeschlagen.".into()
+        }
+        409 if r.message == refusals::KNOWN_GAME => KNOWN_GAME.into(),
         404 => "Das gibt es auf dem Server nicht.".into(),
         401 => "Der Server kennt diesen PC nicht mehr; koppele ihn neu (spielstand-agent pair).".into(),
         _ => format!("Der Server lehnt ab: {}", r.message),

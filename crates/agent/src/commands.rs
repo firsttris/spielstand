@@ -38,9 +38,6 @@ pub enum CustomCommand {
         /// A folder name the game is installed as (for `<base>`); repeatable.
         #[arg(long = "install-dir")]
         install_dirs: Vec<String>,
-        /// Add the paths to the manifest's game of this name.
-        #[arg(long)]
-        extend: bool,
         /// Propose it although no file matches yet.
         #[arg(long)]
         allow_empty: bool,
@@ -145,7 +142,6 @@ pub async fn custom_command(dirs: &Dirs, command: CustomCommand) -> anyhow::Resu
             name,
             paths,
             install_dirs,
-            extend,
             allow_empty,
             dry_run,
             json,
@@ -154,7 +150,7 @@ pub async fn custom_command(dirs: &Dirs, command: CustomCommand) -> anyhow::Resu
                 name,
                 files: paths,
                 install_dir: install_dirs,
-                extend,
+                extend: false,
             };
             let preview = custom::preview(&agent, &game, allow_empty)
                 .await

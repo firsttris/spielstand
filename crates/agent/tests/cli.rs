@@ -146,7 +146,7 @@ async fn an_assistant_tries_a_custom_game_out_and_proposes_it_for_this_pc() {
         .run(&["custom", "add", "--name", "Hades", "--path", "<home>/Hades"])
         .await;
     assert!(!known.ok);
-    assert!(known.stderr.contains("--extend"), "{}", known.stderr);
+    assert!(known.stderr.contains("Web-UI"), "{}", known.stderr);
     let nothing = cli
         .run(&["custom", "add", "--name", "Other", "--path", "<home>/Other"])
         .await;

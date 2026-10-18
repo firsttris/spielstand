@@ -203,3 +203,30 @@ async fn a_device_chooses_its_own_prefix_and_only_ever_switches_syncing_off() {
     assert!(res.status().is_success());
     assert_eq!(settings(&s, &deck).await.game_modes["Hades"], SaveMode::Backup);
 }
+
+#[tokio::test]
+async fn a_device_proposes_only_games_nobody_knows_yet() {
+    let s = start().await;
+    let desktop = s.pair("desktop").await;
+    let (v1, b1) = common::version(s.dir.path(), INDIE, "one", None);
+    s.upload_ok(&desktop, &v1, &b1).await;
+    let res = propose(&s, &desktop, &indie("<xdgData>/Indie")).await;
+    assert_eq!(res.status(), StatusCode::CONFLICT, "it has versions already");
+    let error: Value = res.json().await.unwrap();
+    assert_eq!(error["error"], spielstand_protocol::refusals::KNOWN_GAME);
+
+    let fresh = json!({ "name": "Fresh", "files": ["<xdgData>/Fresh"] });
+    assert!(propose(&s, &desktop, &fresh).await.status().is_success());
+    let (v, b) = common::version(s.dir.path(), "Fresh", "one", None);
+    s.upload_ok(&desktop, &v, &b).await;
+    let changed = json!({ "name": "Fresh", "files": ["<xdgData>/Fresh/saves"] });
+    assert!(
+        propose(&s, &desktop, &changed).await.status().is_success(),
+        "its own proposal with its own versions may change"
+    );
+    let extended = json!({ "name": "Other", "files": ["<xdgData>/Other"], "extend": true });
+    assert_eq!(
+        propose(&s, &desktop, &extended).await.status(),
+        StatusCode::CONFLICT
+    );
+}
