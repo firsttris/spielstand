@@ -115,6 +115,7 @@ async fn on_message(agent: &Agent, message: ServerMessage, playing: &BTreeMap<St
 }
 
 async fn back_up_now(agent: &Agent, game: &str) -> anyhow::Result<()> {
+    let _working = agent.lock_game(game).await;
     let scanner = agent.scanner.clone();
     disk::snapshot(
         &agent.dirs,

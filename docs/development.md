@@ -32,6 +32,8 @@ docker/       the image: server, agent binaries, rclone
 - **The agent** (`agent/src/agent.rs`) holds what a PC knows: settings from the server, where saves
   are, which games are installed here (`games_to_follow`). `sync.rs` has the flows, `watch.rs` the
   save-folder watcher, `report.rs` what goes to the web UI, `foreign.rs` Syncthing and Stellwerk.
+  The watcher, the server's pushes and the catch-up run as separate tasks; each flow holds its
+  game's lock (`lock_game`), so none decides on what another one has only half done.
 - **Switch emulators** (`agent/src/emulators/`): `yuzu.rs` and `ryujinx.rs` read each family's
   layout (profiles, save folders, names), `mod.rs` finds the installs and picks a title's save
   folder, `scanner.rs` adds them to Ludusavi's scanner. Saves are stored as `<switch>/…`.

@@ -65,6 +65,12 @@ pub enum Outcome {
 impl Agent {
     /// Loads version `id` onto the disk, keeping what was there as a version first.
     pub async fn restore_version(&self, game: &str, id: &str) -> anyhow::Result<()> {
+        let _working = self.lock_game(game).await;
+        self.load(game, id).await
+    }
+
+    /// [`Agent::restore_version`] for a flow that holds the game's lock already.
+    async fn load(&self, game: &str, id: &str) -> anyhow::Result<()> {
         let meta = self.client.meta(id).await?;
         anyhow::ensure!(meta.game == game, "version {id} belongs to {}", meta.game);
         let prefix = match self.prefix_for(game, &meta) {
@@ -126,6 +132,7 @@ impl Agent {
     }
 
     async fn run(&self, game: &str, mode: Mode, save_mode: SyncMode) -> anyhow::Result<Outcome> {
+        let _working = self.lock_game(game).await;
         let _ = self.flush().await;
         let Ok(heads) = self.client.heads().await else {
             // Without the server nothing is decided, but a changed disk is kept right away:
@@ -211,7 +218,7 @@ impl Agent {
                 if self.scanner.steam_cloud(game) && !self.config.restore_steam_cloud_games {
                     return Ok(Outcome::SkippedSteamCloud);
                 }
-                self.restore_version(game, &version).await?;
+                self.load(game, &version).await?;
                 Ok(Outcome::Loaded(version))
             }
             Decision::Conflict { head: head_id } => {
@@ -254,10 +261,10 @@ impl Agent {
     }
 
     /// Acts on the answer to a conflict question; no answer keeps the local state.
-    pub async fn resolve(&self, game: &str, choice: Choice, head: &str) -> anyhow::Result<Outcome> {
+    async fn resolve(&self, game: &str, choice: Choice, head: &str) -> anyhow::Result<Outcome> {
         match choice {
             Choice::Theirs => {
-                self.restore_version(game, head).await?;
+                self.load(game, head).await?;
                 Ok(Outcome::Loaded(head.to_string()))
             }
             Choice::Mine => {
@@ -312,6 +319,7 @@ impl Agent {
 
     /// After a game ended: snapshot, upload, tell the server the game stopped.
     pub async fn after_session(&self, game: &str, seconds: u64) -> anyhow::Result<Outcome> {
+        let _working = self.lock_game(game).await;
         let made = self.snapshot(game, Trigger::Session, Some(seconds)).await?;
         let _ = self.client.presence(None).await;
         if made.is_none() {
