@@ -43,6 +43,7 @@ ludusavi = { version = "=0.31.0", default-features = false }
 zip = { version = "0.6", default-features = false, features = ["deflate", "bzip2", "zstd"] }
 async-trait = "0.1"
 time = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 
 [dev-dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

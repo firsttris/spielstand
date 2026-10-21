@@ -3,7 +3,7 @@
 
 mod common;
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use common::{TestAgent, TestServer, start, start_with, version};
 use futures::StreamExt;
 use reqwest::Method;
@@ -280,9 +280,9 @@ async fn modes_and_folders_are_set_in_the_web_ui_and_pushed_to_agents() {
     assert_eq!(without_login.status(), 401);
 }
 
-async fn backdate(s: &TestServer, id: &str, days: i64) {
+async fn backdate(s: &TestServer, id: &str, at: DateTime<Utc>) {
     sqlx::query("UPDATE versions SET created_at = ? WHERE id = ?")
-        .bind(spielstand_server::db::ts(Utc::now() - Duration::days(days)))
+        .bind(spielstand_server::db::ts(at))
         .bind(id)
         .execute(&s.state.db)
         .await
@@ -304,8 +304,11 @@ async fn retention_thins_old_versions_keeps_protected_ones_and_purges_the_trash(
         parent = Some(v.id.clone());
         ids.push(v.id);
     }
-    for id in &ids[..4] {
-        backdate(&s, id, 40).await;
+    // A second apart: timestamps keep only milliseconds, and a tie would let the pinned one
+    // count as the newest of the old day.
+    let old = Utc::now() - Duration::days(40);
+    for (n, id) in ids[..4].iter().enumerate() {
+        backdate(&s, id, old + Duration::seconds(n as i64)).await;
     }
     s.admin(Method::PATCH, &format!("/api/versions/{}", ids[0]))
         .json(&json!({ "pinned": true }))

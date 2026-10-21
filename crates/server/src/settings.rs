@@ -32,6 +32,14 @@ pub struct Settings {
     /// Mark the session cookie `Secure` (behind HTTPS).
     #[arg(long, env = "SPIELSTAND_SECURE_COOKIES", default_value_t = false)]
     pub secure_cookies: bool,
+
+    /// Where the names of Switch titles come from: a titledb file as URL or path; empty: none.
+    #[arg(
+        long,
+        env = "SPIELSTAND_SWITCH_TITLES",
+        default_value = "https://raw.githubusercontent.com/blawar/titledb/master/US.en.json"
+    )]
+    pub switch_titles: String,
 }
 
 impl Settings {
@@ -44,6 +52,7 @@ impl Settings {
             rclone: "rclone".into(),
             agent_dir: PathBuf::from("/nonexistent"),
             secure_cookies: false,
+            switch_titles: String::new(),
         }
     }
 

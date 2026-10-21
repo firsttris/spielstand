@@ -4,7 +4,7 @@ use common::{start, start_with, version};
 use futures::{SinkExt, StreamExt};
 use reqwest::Method;
 use spielstand_protocol::{HeadsResponse, PromoteOutcome, UploadStatus, paths};
-use spielstand_server::mirror;
+use spielstand_server::{mirror, switch_titles};
 use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 
 #[tokio::test]
@@ -299,4 +299,44 @@ async fn guessing_passwords_and_pairing_codes_is_slowed_down() {
     };
     let tries = futures::future::join_all((0..25).map(|n| pair(format!("AAA-{n:03}")))).await;
     assert_eq!(tries.iter().filter(|s| **s == 429).count(), 5, "{tries:?}");
+}
+
+#[tokio::test]
+async fn switch_games_without_a_name_get_one_from_the_title_list() {
+    let list = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(
+        list.path(),
+        r#"{"70010000000029": {"id": "0100000000010000", "name": "Super Mario Odyssey™"}}"#,
+    )
+    .unwrap();
+    let source = list.path().to_str().unwrap().to_string();
+    let s = start_with(|settings| settings.switch_titles = source).await;
+    let a = s.pair("zentrale").await;
+    let (v, blob) = version(s.dir.path(), "Switch 0100000000010000", "one", None);
+    s.upload_ok(&a, &v, &blob).await;
+    let (v, blob) = version(s.dir.path(), "Switch 0100152000022000", "one", None);
+    s.upload_ok(&a, &v, &blob).await;
+
+    assert_eq!(switch_titles::refresh(&s.state).await.unwrap(), 1);
+
+    let games: serde_json::Value = s
+        .admin(Method::GET, "/api/games")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let title = |id: &str| games.as_array().unwrap().iter().find(|g| g["id"] == id).unwrap()["title"].clone();
+    assert_eq!(title("Switch 0100000000010000"), "Super Mario Odyssey");
+    assert!(title("Switch 0100152000022000").is_null());
+    let detail: serde_json::Value = s
+        .admin(Method::GET, "/api/games/Switch%200100000000010000")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(detail["title"], "Super Mario Odyssey");
 }

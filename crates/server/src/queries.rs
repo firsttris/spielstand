@@ -8,7 +8,7 @@ use spielstand_protocol::{
 };
 use sqlx::Row;
 
-use crate::{alerts, app::AppState, db, modes, presence, reports, versions};
+use crate::{alerts, app::AppState, db, modes, presence, reports, switch_titles, versions};
 
 async fn device_names(state: &AppState) -> anyhow::Result<BTreeMap<String, String>> {
     let rows: Vec<(String, String)> = sqlx::query_as("SELECT id, name FROM devices")
@@ -131,7 +131,10 @@ pub async fn games(state: &AppState) -> anyhow::Result<Vec<GameSummary>> {
                 behind,
                 overwritten: overwritten.contains(&id),
                 mode: game_modes.get(&id).copied().unwrap_or(default_mode),
-                title: titles.get(&id).cloned(),
+                title: titles
+                    .get(&id)
+                    .cloned()
+                    .or_else(|| switch_titles::name_of(&state.switch_titles, &id)),
                 id,
             })
         })
@@ -191,7 +194,10 @@ pub async fn game(state: &AppState, game: &str) -> anyhow::Result<Option<GameDet
     let (mode, mode_is_default) = modes::mode_of(state, game).await?;
     Ok(Some(GameDetail {
         id: game.to_string(),
-        title: versions.iter().find_map(|v| v.meta.title.clone()),
+        title: versions
+            .iter()
+            .find_map(|v| v.meta.title.clone())
+            .or_else(|| switch_titles::name_of(&state.switch_titles, game)),
         conflict: !open.is_empty(),
         locations: reports::locations(state, game, head.as_deref()).await?,
         alerts: alerts::open(state, Some(game)).await?,

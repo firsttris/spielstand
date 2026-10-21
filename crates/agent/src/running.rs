@@ -159,12 +159,19 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let install = dir.path().join("Games/Some Game/bin");
         std::fs::create_dir_all(&install).unwrap();
-        let exe = install.join("game");
+        // Keeps the name `sleep`: uutils (Ubuntu 26.04) is one binary that picks its tool by name.
+        let exe = install.join("sleep");
         std::fs::copy("/bin/sleep", &exe).unwrap();
         let mut child = std::process::Command::new(&exe).arg("30").spawn().unwrap();
         let installs = vec![("Some Game".to_string(), dir.path().join("Games/Some Game"))];
         let mut watcher = Watcher::default();
-        let running = watcher.running(&installs);
+        // Right after `spawn` the child may not have exec'd yet and still shows the test binary.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut running = watcher.running(&installs);
+        while running.is_empty() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            running = watcher.running(&installs);
+        }
         assert_eq!(running.get("Some Game"), Some(&child.id()));
         child.kill().unwrap();
         child.wait().unwrap();

@@ -15,6 +15,12 @@ pub fn new_version_id(now: chrono::DateTime<chrono::Utc>) -> String {
     format!("{}-{}", now.format("%Y%m%dT%H%M%S%3fZ"), &short[..12])
 }
 
+/// The title id of a Switch game, keyed `Switch <title id>` (16 hex digits).
+pub fn switch_title_id(game: &str) -> Option<&str> {
+    game.strip_prefix("Switch ")
+        .filter(|id| id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
 /// A file-system-safe name for a game title, used in mirror paths.
 pub fn slug(title: &str) -> String {
     let mut out = String::with_capacity(title.len());
