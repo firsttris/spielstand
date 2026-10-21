@@ -159,7 +159,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let install = dir.path().join("Games/Some Game/bin");
         std::fs::create_dir_all(&install).unwrap();
-        let exe = install.join("game");
+        // Keeps the name `sleep`: uutils (Ubuntu 26.04) is one binary that picks its tool by name.
+        let exe = install.join("sleep");
         std::fs::copy("/bin/sleep", &exe).unwrap();
         let mut child = std::process::Command::new(&exe).arg("30").spawn().unwrap();
         let installs = vec![("Some Game".to_string(), dir.path().join("Games/Some Game"))];
