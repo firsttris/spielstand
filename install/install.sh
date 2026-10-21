@@ -60,6 +60,9 @@ After=network-online.target
 ExecStart=$BIN run
 Restart=on-failure
 RestartSec=10
+# A background service: the PC in use comes first.
+Nice=10
+IOSchedulingClass=idle
 
 [Install]
 WantedBy=default.target

@@ -16,7 +16,16 @@ use spielstand_agent::{
 use spielstand_protocol::CustomGame;
 
 pub fn scanner(dirs: &Dirs) -> anyhow::Result<Arc<dyn Scanner>> {
-    let ludusavi: Arc<dyn Scanner> = Arc::new(Ludusavi::open(&dirs.ludusavi())?);
+    with_emulators(Ludusavi::open(&dirs.ludusavi())?)
+}
+
+/// The scanner of the service, which runs while the PC is in use.
+pub fn background_scanner(dirs: &Dirs) -> anyhow::Result<Arc<dyn Scanner>> {
+    with_emulators(Ludusavi::open(&dirs.ludusavi())?.in_background()?)
+}
+
+fn with_emulators(ludusavi: Ludusavi) -> anyhow::Result<Arc<dyn Scanner>> {
+    let ludusavi: Arc<dyn Scanner> = Arc::new(ludusavi);
     Ok(Arc::new(WithEmulators::new(ludusavi, Xdg::from_env(&home()))))
 }
 

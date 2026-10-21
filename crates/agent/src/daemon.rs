@@ -258,7 +258,8 @@ async fn watch_processes(agent: &Agent, playing: &Playing, every: Duration) {
     }
 }
 
-/// The folders to watch: where each game's saves are now.
+/// The folders to watch: where each game's saves are now. Worked out every 10 minutes, so the
+/// files are only found, not read.
 async fn watched_folders(agent: &Agent) -> Vec<(PathBuf, String)> {
     let games = agent.games_here().await;
     let agent = agent.clone();
@@ -266,8 +267,7 @@ async fn watched_folders(agent: &Agent) -> Vec<(PathBuf, String)> {
         games
             .into_iter()
             .filter_map(|g| {
-                let files: Vec<PathBuf> = disk::read(agent.scanner.as_ref(), &g)
-                    .ok()?
+                let files: Vec<PathBuf> = disk::find(agent.scanner.as_ref(), &g)
                     .sources
                     .into_iter()
                     .map(|s| s.path)

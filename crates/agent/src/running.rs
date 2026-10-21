@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, UpdateKind};
 
 use crate::config::Dirs;
 
@@ -78,10 +78,15 @@ impl Default for Watcher {
 impl Watcher {
     /// Games whose install folder appears in a running process.
     pub fn running(&mut self, installs: &[(String, PathBuf)]) -> BTreeMap<String, u32> {
+        // Every 5 seconds: only what is matched (command line, executable), read once per
+        // process, and no threads, which share their process's command line and executable.
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::everything(),
+            ProcessRefreshKind::nothing()
+                .with_cmd(UpdateKind::OnlyIfNotSet)
+                .with_exe(UpdateKind::OnlyIfNotSet)
+                .without_tasks(),
         );
         let dirs: Vec<(String, String)> = installs
             .iter()

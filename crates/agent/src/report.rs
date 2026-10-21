@@ -62,12 +62,8 @@ impl Agent {
     }
 
     pub fn game_report(&self, game: &str) -> GameReport {
-        let disk = disk::read(self.scanner.as_ref(), game).ok();
-        let files: Vec<PathBuf> = disk
-            .as_ref()
-            .map(|d| d.sources.iter().map(|s| s.path.clone()).collect())
-            .unwrap_or_default();
-        let prefix = disk.as_ref().and_then(|d| d.prefix.clone());
+        let disk::Found { sources, prefix } = disk::find(self.scanner.as_ref(), game);
+        let files: Vec<PathBuf> = sources.into_iter().map(|s| s.path).collect();
         let settings = self.settings();
         let prefixr: Vec<PathBuf> = self
             .sources
@@ -128,11 +124,7 @@ impl Agent {
         let files: Vec<PathBuf> = games
             .iter()
             .filter(|g| self.configured_mode(g) == SaveMode::Sync)
-            .flat_map(|g| {
-                disk::read(self.scanner.as_ref(), g)
-                    .map(|d| d.sources)
-                    .unwrap_or_default()
-            })
+            .flat_map(|g| disk::find(self.scanner.as_ref(), g).sources)
             .map(|s| disk::real_path(&s.path))
             .collect();
         match foreign::write_drop_in(&dir, &foreign::drop_in(&files)) {

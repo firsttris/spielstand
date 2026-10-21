@@ -15,6 +15,9 @@ versions, loads new ones from the server and asks when two PCs disagree.
   scans for newly installed games.
 - **Offline** it keeps working: versions wait in the outbox and go up when the server is back.
 
+It stays in the background: the service runs at low CPU and disk priority, and the scan for games
+uses two threads, so it takes a few minutes after a start rather than all cores.
+
 ## Where it looks for saves
 
 The agent uses [Ludusavi](ludusavi.md)'s scanner and its manifest of over 10,000 games. Besides

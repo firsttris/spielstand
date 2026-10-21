@@ -3,7 +3,7 @@ mod commands;
 use std::{sync::Arc, time::Instant};
 
 use clap::{Parser, Subcommand};
-use commands::{CustomCommand, SkillCommand, scanner};
+use commands::{CustomCommand, SkillCommand, background_scanner, scanner};
 use spielstand_agent::{
     Mode,
     client::Client,
@@ -165,7 +165,8 @@ async fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Pair { server, code, name } => pair(&dirs, server, code, name).await,
         Command::Run => {
-            let agent = spielstand_agent::open(dirs.clone(), scanner(&dirs)?, Arc::new(Desktop)).await?;
+            let agent =
+                spielstand_agent::open(dirs.clone(), background_scanner(&dirs)?, Arc::new(Desktop)).await?;
             daemon::run(agent).await
         }
         Command::Launch { game, command } => std::process::exit(launch(dirs, game, command).await?),
