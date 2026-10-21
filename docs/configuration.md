@@ -13,6 +13,7 @@ Every setting is an environment variable (or the matching command-line flag, e.g
 | `SPIELSTAND_RCLONE` | `rclone` | the rclone program |
 | `SPIELSTAND_AGENT_DIR` | `/usr/share/spielstand/agent` | agent binaries served at `/download/agent/<arch>` |
 | `SPIELSTAND_SECURE_COOKIES` | `false` | set `true` behind HTTPS |
+| `SPIELSTAND_SWITCH_TITLES` | titledb's `US.en.json` | names of Switch titles the emulator did not give: a URL or a file, loaded weekly; empty turns it off |
 | `RCLONE_CONFIG` | `/data/rclone/rclone.conf` | in the image |
 | `RUST_LOG` | `info` | log level |
 

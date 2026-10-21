@@ -5,7 +5,7 @@ use spielstand_protocol::MirrorStatus;
 use tokio::sync::Notify;
 use tower_http::trace::TraceLayer;
 
-use crate::{db::Db, hub::Hub, routes, settings::Settings, throttle::Throttle};
+use crate::{db::Db, hub::Hub, routes, settings::Settings, switch_titles::SwitchTitles, throttle::Throttle};
 
 /// Packages above this size are refused (saves are small; this guards the disk).
 pub const MAX_PACKAGE: u64 = 4 * 1024 * 1024 * 1024;
@@ -20,6 +20,7 @@ pub struct AppState {
     pub mirror_status: Arc<Mutex<MirrorStatus>>,
     pub logins: Throttle,
     pub pairings: Throttle,
+    pub switch_titles: SwitchTitles,
 }
 
 impl AppState {
@@ -42,6 +43,7 @@ impl AppState {
             mirror_status: Arc::new(Mutex::new(mirror_status)),
             logins: Throttle::new(10, std::time::Duration::from_secs(60)),
             pairings: Throttle::new(20, std::time::Duration::from_secs(60)),
+            switch_titles: SwitchTitles::default(),
         })
     }
 }

@@ -19,6 +19,7 @@ pub mod queries;
 pub mod reports;
 pub mod routes;
 pub mod settings;
+pub mod switch_titles;
 pub mod throttle;
 pub mod versions;
 
@@ -31,6 +32,7 @@ pub async fn serve(settings: Settings) -> anyhow::Result<()> {
     let state = AppState::open(settings).await?;
     tokio::spawn(mirror::run(state.clone()));
     tokio::spawn(gc::run(state.clone()));
+    tokio::spawn(switch_titles::run(state.clone()));
     let listener = tokio::net::TcpListener::bind(&listen).await?;
     tracing::info!("Spielstand server {} on {listen}", env!("CARGO_PKG_VERSION"));
     axum::serve(listener, router(state))

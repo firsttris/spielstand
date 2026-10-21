@@ -209,8 +209,7 @@ fn check_path(path: &str) -> Result<(), Invalid> {
 
 /// Switch games are keyed `Switch <title id>`; a custom game must not take such a key.
 fn is_switch_key(name: &str) -> bool {
-    name.strip_prefix("Switch ")
-        .is_some_and(|id| id.len() == 16 && id.chars().all(|c| c.is_ascii_hexdigit()))
+    crate::switch_title_id(name).is_some()
 }
 
 fn clean(items: &[String]) -> Vec<String> {

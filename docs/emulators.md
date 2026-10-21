@@ -7,7 +7,10 @@ has to be set up; the agent finds the emulators on its own.
 ## One game per title
 
 Every Switch title is a game of its own, named as the emulator knows it (*The Legend of Zelda:
-Tears of the Kingdom*). Internally it is keyed by its title id (`Switch 0100F2C0115B6000`), not by
+Tears of the Kingdom*). The yuzu family knows the name only of games installed to the NAND, not of
+games in a games folder; for those the server looks the title id up in
+[titledb](https://github.com/blawar/titledb) (see `SPIELSTAND_SWITCH_TITLES` in the
+[configuration](configuration.md)). Internally it is keyed by its title id (`Switch 0100F2C0115B6000`), not by
 the emulator: the save files are the same in all of them, so a state from Eden on the desktop
 loads into Ryujinx on the Steam Deck and back. Versions, conflicts, modes and alerts work as for
 any other game.
