@@ -125,7 +125,13 @@ pub struct Ludusavi {
     wine_prefixes: RwLock<Vec<PathBuf>>,
     game_folders: RwLock<Vec<PathBuf>>,
     own_prefixes: RwLock<BTreeMap<String, PathBuf>>,
+    /// Where the whole manifest is looked through for the service (see `in_background`); a
+    /// command uses every core.
+    pool: Option<rayon::ThreadPool>,
 }
+
+/// Threads the service looks through the whole manifest with.
+const BACKGROUND_THREADS: usize = 2;
 
 impl Ludusavi {
     /// Loads Ludusavi's data below `dir` (kept apart from a Ludusavi the user may also run),
@@ -173,7 +179,21 @@ impl Ludusavi {
             wine_prefixes: RwLock::default(),
             game_folders: RwLock::default(),
             own_prefixes: RwLock::default(),
+            pool: None,
         }
+    }
+
+    /// For the service: looking through the whole manifest (at the start, after new settings
+    /// and every 6 hours, while the PC is in use) takes a few threads, not every core. Ludusavi
+    /// hashes every save file it finds.
+    pub fn in_background(mut self) -> anyhow::Result<Self> {
+        self.pool = Some(
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(BACKGROUND_THREADS)
+                .thread_name(|i| format!("scan-{i}"))
+                .build()?,
+        );
+        Ok(self)
     }
 
     /// Ludusavi's roots plus one Wine root per extra prefix.
@@ -264,16 +284,22 @@ impl Scanner for Ludusavi {
     }
 
     fn games_with_saves(&self) -> Vec<String> {
-        let launchers = self.launchers();
-        let known = self.known();
-        let names: Vec<&String> = known.manifest.0.keys().collect();
-        let mut found: Vec<String> = names
-            .par_iter()
-            .filter(|name| !self.scan(name, &launchers).is_empty())
-            .map(|n| n.to_string())
-            .collect();
-        found.sort();
-        found
+        let all = || {
+            let launchers = self.launchers();
+            let known = self.known();
+            let names: Vec<&String> = known.manifest.0.keys().collect();
+            let mut found: Vec<String> = names
+                .par_iter()
+                .filter(|name| !self.scan(name, &launchers).is_empty())
+                .map(|n| n.to_string())
+                .collect();
+            found.sort();
+            found
+        };
+        match &self.pool {
+            Some(pool) => pool.install(all),
+            None => all(),
+        }
     }
 
     fn steam_cloud(&self, game: &str) -> bool {

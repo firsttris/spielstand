@@ -49,13 +49,18 @@ Not Installed:
         ],
         ..Config::default()
     };
-    let engine = Ludusavi::with(config, manifest, StrictPath::from(dir.path().join("app")));
+    let app = StrictPath::from(dir.path().join("app"));
+    let engine = Ludusavi::with(config.clone(), manifest.clone(), app.clone());
 
     let games: BTreeSet<String> = engine.games_with_saves().into_iter().collect();
     assert_eq!(
         games,
         ["Demo Game", "Wine Game"].into_iter().map(String::from).collect()
     );
+    // The service looks with fewer threads and finds the same.
+    let background = Ludusavi::with(config, manifest, app).in_background().unwrap();
+    let found: BTreeSet<String> = background.games_with_saves().into_iter().collect();
+    assert_eq!(found, games);
     assert_eq!(engine.save_files("Demo Game"), vec![native.join("save1.dat")]);
     assert_eq!(engine.save_files("Wine Game"), vec![roaming.join("slot.sav")]);
     assert!(engine.steam_cloud("Demo Game"));
@@ -112,6 +117,14 @@ Hades:
         "<prefix>/drive_c/users/<user>/AppData/Roaming/Supergiant Games/Hades/Profile1.sav"
     );
     assert_eq!(disk.prefix.as_deref(), Some(prefix.as_path()));
+
+    // Finding the places without reading the files gives the same files and prefix.
+    let found = spielstand_agent::disk::find(&engine, "Hades");
+    let paths = |sources: &[spielstand_core::pack::Source]| -> Vec<std::path::PathBuf> {
+        sources.iter().map(|s| s.path.clone()).collect()
+    };
+    assert_eq!(paths(&found.sources), paths(&disk.sources));
+    assert_eq!(found.prefix, disk.prefix);
 }
 
 /// Writing a version into a save folder Ludusavi scans as a whole: the agent's own staging file

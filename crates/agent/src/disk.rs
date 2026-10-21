@@ -109,6 +109,27 @@ fn portable_of(path: &Path, place: Place<'_>, anchors: &Anchors) -> String {
 }
 
 pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
+    let Found { sources, prefix } = find(scanner, game);
+    let files = pack::describe(&sources)?;
+    let content_hash = (!files.is_empty()).then(|| pack::content_hash(&files));
+    Ok(DiskState {
+        sources,
+        files,
+        content_hash,
+        prefix,
+    })
+}
+
+/// The save files of `game` as `read` sees them, without reading them.
+pub struct Found {
+    pub sources: Vec<Source>,
+    /// The Wine prefix the saves are in, if they are in one.
+    pub prefix: Option<PathBuf>,
+}
+
+/// Where the saves of `game` are: each file once, with its portable path. For what needs only
+/// the places (the folders to watch, the reports), which run often: `read` hashes every file.
+pub fn find(scanner: &dyn Scanner, game: &str) -> Found {
     let anchors = scanner.anchors();
     let found = save_files(scanner, game);
     let save_dir = scanner.emulator_place(game).and_then(Result::ok).map(|p| p.dir);
@@ -130,14 +151,7 @@ pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
         // Two real profiles with the same save path: one place to put it back, so one file.
         .filter(|s| portables.insert(s.portable.clone()))
         .collect();
-    let files = pack::describe(&sources)?;
-    let content_hash = (!files.is_empty()).then(|| pack::content_hash(&files));
-    Ok(DiskState {
-        sources,
-        files,
-        content_hash,
-        prefix,
-    })
+    Found { sources, prefix }
 }
 
 /// Packs the disk state of `game` into the outbox and makes it the base. Returns `None` when
