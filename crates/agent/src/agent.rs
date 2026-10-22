@@ -108,12 +108,17 @@ impl Agent {
     }
 
     /// New settings from the server: kept on disk, the scanner looks in the new places.
-    pub fn apply_settings(&self, settings: AgentSettings) {
+    /// Takes new settings; whether they differ from the ones in effect.
+    pub fn apply_settings(&self, settings: AgentSettings) -> bool {
+        if *self.settings.read().unwrap() == settings {
+            return false;
+        }
         if let Err(e) = settings::save(&self.dirs, &settings) {
             tracing::warn!("keeping settings: {e:#}");
         }
         *self.settings.write().unwrap() = settings;
         self.configure_scanner();
+        true
     }
 
     /// Fetches the settings, if the server is there.

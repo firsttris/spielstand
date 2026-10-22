@@ -54,6 +54,10 @@ impl Dirs {
     pub fn running(&self) -> PathBuf {
         self.data.join("running")
     }
+    /// Its time is when the agent last looked through the whole manifest.
+    pub fn last_full_scan(&self) -> PathBuf {
+        self.data.join("last-full-scan")
+    }
     pub fn ludusavi(&self) -> PathBuf {
         self.data.join("ludusavi")
     }

@@ -16,7 +16,10 @@ versions, loads new ones from the server and asks when two PCs disagree.
 - **Offline** it keeps working: versions wait in the outbox and go up when the server is back.
 
 It stays in the background: the service runs at low CPU and disk priority, and the scan for games
-uses two threads, so it takes a few minutes after a start rather than all cores. The agent connects
+uses two threads that only get CPU time nothing else wants, so a game or the desktop never waits
+for it. That scan looks through the whole manifest and takes minutes; it runs at most every 6
+hours, also across restarts and updates, and when the game folders, custom games or prefix choices
+change in the web UI. The agent connects
 first, so the web UI shows it online with its version right away, also during that scan.
 
 ## Where it looks for saves

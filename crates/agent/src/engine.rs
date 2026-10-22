@@ -133,6 +133,23 @@ pub struct Ludusavi {
 /// Threads the service looks through the whole manifest with.
 const BACKGROUND_THREADS: usize = 2;
 
+/// The calling thread only gets CPU time nothing else wants (Linux `SCHED_IDLE`): a game or the
+/// desktop never wait for the scan. Only the scan threads; the rest of the agent (live
+/// connection, backing up after a game) keeps the service's priority.
+fn only_when_idle() {
+    #[cfg(target_os = "linux")]
+    {
+        let param = libc::sched_param { sched_priority: 0 };
+        // SAFETY: changes only the calling thread's policy; lowering it needs no privileges.
+        if unsafe { libc::sched_setscheduler(0, libc::SCHED_IDLE, &param) } != 0 {
+            tracing::debug!(
+                "scan threads keep their priority: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+}
+
 impl Ludusavi {
     /// Loads Ludusavi's data below `dir` (kept apart from a Ludusavi the user may also run),
     /// updates the manifest when it is older than a day, and finds the launcher roots.
@@ -191,6 +208,7 @@ impl Ludusavi {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(BACKGROUND_THREADS)
                 .thread_name(|i| format!("scan-{i}"))
+                .start_handler(|_| only_when_idle())
                 .build()?,
         );
         Ok(self)
@@ -394,6 +412,8 @@ pub struct FakeScanner {
     pub own_prefixes: RwLock<BTreeMap<String, PathBuf>>,
     /// How long looking through the disk takes (a real one with many games takes minutes).
     pub scan_time: std::time::Duration,
+    /// How often the disk was looked through as a whole.
+    pub full_scans: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl FakeScanner {
@@ -452,6 +472,7 @@ impl Scanner for FakeScanner {
         out
     }
     fn games_with_saves(&self) -> Vec<String> {
+        self.full_scans.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         std::thread::sleep(self.scan_time);
         let names: std::collections::BTreeSet<&String> =
             self.games.keys().chain(self.profile_saves.keys()).collect();
@@ -501,5 +522,23 @@ impl Scanner for FakeScanner {
             .chain(self.profile_saves.keys())
             .find(|g| normalize_title(g) == wanted)
             .cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_scan_threads_only_take_idle_cpu() {
+        let policy = std::thread::spawn(|| {
+            only_when_idle();
+            // SAFETY: reads the calling thread's policy.
+            unsafe { libc::sched_getscheduler(0) }
+        })
+        .join()
+        .unwrap();
+        assert_eq!(policy, libc::SCHED_IDLE);
     }
 }
