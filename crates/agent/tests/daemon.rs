@@ -292,3 +292,61 @@ async fn the_agent_is_online_before_it_has_looked_through_the_disk() {
     }
     daemon.abort();
 }
+
+/// A PC whose disk counts how often it is looked through as a whole.
+async fn counting(s: &common::Server) -> (Pc, Arc<std::sync::atomic::AtomicUsize>) {
+    let scans = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = scans.clone();
+    let pc = pc_with(s, "desktop", move |home| {
+        let mut games = std::collections::BTreeMap::new();
+        games.insert(GAME.to_string(), vec![home.join(".local/share/EldenRing")]);
+        let scanner = spielstand_agent::engine::FakeScanner {
+            anchors: spielstand_core::portable::Anchors {
+                home: home.to_path_buf(),
+                roots: vec![],
+            },
+            games,
+            full_scans: counter,
+            ..Default::default()
+        };
+        (scanner, Default::default())
+    })
+    .await;
+    (pc, scans)
+}
+
+fn full_scans(scans: &std::sync::atomic::AtomicUsize) -> usize {
+    scans.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn connecting_with_the_same_settings_does_not_look_through_the_disk_again() {
+    let s = server().await;
+    let (desktop, scans) = counting(&s).await;
+    let daemon = start(&desktop);
+    eventually("online", || async {
+        s.state.hub.is_online(&desktop.agent.config.device_id)
+    })
+    .await;
+    eventually("the scan at the start", || async { full_scans(&scans) >= 1 }).await;
+    // The settings the server sends on connecting are the ones the agent already has.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(full_scans(&scans), 1);
+    daemon.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_restart_soon_after_a_full_scan_does_not_scan_again() {
+    let s = server().await;
+    let (desktop, scans) = counting(&s).await;
+    std::fs::create_dir_all(&desktop.agent.dirs.data).unwrap();
+    std::fs::write(desktop.agent.dirs.last_full_scan(), b"").unwrap();
+    let daemon = start(&desktop);
+    eventually("online", || async {
+        s.state.hub.is_online(&desktop.agent.config.device_id)
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(full_scans(&scans), 0);
+    daemon.abort();
+}

@@ -26,6 +26,7 @@ tracing-subscriber.workspace = true
 sqlx.workspace = true
 clap.workspace = true
 tempfile.workspace = true
+libc = "0.2"
 ludusavi = { version = "=0.31.0", default-features = false }
 # The system's certificates as well (like the live connection), so a server behind a proxy with
 # a local CA (Caddy's `tls internal`) works once that CA is trusted on the PC.

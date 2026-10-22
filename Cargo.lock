@@ -3519,6 +3519,7 @@ dependencies = [
  "clap",
  "dirs 5.0.1",
  "futures",
+ "libc",
  "ludusavi",
  "notify",
  "notify-rust",

@@ -15,6 +15,7 @@ use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 
 use crate::{
     agent::Agent,
+    config::Dirs,
     disk, emulators,
     running::{self, Watcher},
     sync::{Mode, Outcome},
@@ -103,10 +104,13 @@ async fn on_message(agent: &Agent, message: ServerMessage, playing: &BTreeMap<St
         }
         ServerMessage::BackUp { game } => back_up_now(agent, &game).await,
         ServerMessage::Update => update(agent, playing).await,
+        // The server sends the settings on every connection; only changed ones (game folders,
+        // custom games, prefix choices) can reveal saves the last scan did not see.
         ServerMessage::Settings { settings } => {
-            agent.apply_settings(settings);
-            discover(agent, playing).await;
-            report(agent).await;
+            if agent.apply_settings(settings) {
+                discover(agent, playing).await;
+                report(agent).await;
+            }
             Ok(())
         }
         _ => Ok(()),
@@ -203,6 +207,22 @@ async fn catch_up(agent: &Agent, playing: &BTreeMap<String, (u32, Instant)>) {
             Ok(_) => {}
             Err(e) => tracing::warn!("{game}: {e:#}"),
         }
+    }
+}
+
+/// Looking through the whole manifest takes minutes of CPU; a restart (an update, a reboot) does
+/// not need it again when the last one is recent. Remembered as the time of a marker file.
+fn full_scan_due(dirs: &Dirs, every: Duration) -> bool {
+    std::fs::metadata(dirs.last_full_scan())
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|at| at.elapsed().ok())
+        .is_none_or(|since| since >= every)
+}
+
+fn full_scan_done(dirs: &Dirs) {
+    if let Err(e) = std::fs::write(dirs.last_full_scan(), b"") {
+        tracing::warn!("remembering the full scan: {e:#}");
     }
 }
 
@@ -357,7 +377,10 @@ pub async fn run_with(agent: Agent, timings: Timings) -> anyhow::Result<()> {
     // follows the games that scan finds, so it starts after it.
     let (a, t) = (agent.clone(), timings.clone());
     tokio::spawn(async move {
-        discover(&a, &BTreeMap::new()).await;
+        if full_scan_due(&a.dirs, t.full_scan) {
+            discover(&a, &BTreeMap::new()).await;
+            full_scan_done(&a.dirs);
+        }
         report(&a).await;
         watch_saves(&a, &t).await;
     });
@@ -367,16 +390,15 @@ pub async fn run_with(agent: Agent, timings: Timings) -> anyhow::Result<()> {
 
     let (a, p, t) = (agent.clone(), playing.clone(), timings.clone());
     tokio::spawn(async move {
-        let mut last_full = Instant::now();
         loop {
             tokio::time::sleep(t.catch_up).await;
             let _ = a.flush().await;
             let snapshot = p.lock().await.clone();
             catch_up(&a, &snapshot).await;
-            if last_full.elapsed() > t.full_scan {
+            if full_scan_due(&a.dirs, t.full_scan) {
                 a.configure_scanner();
                 discover(&a, &snapshot).await;
-                last_full = Instant::now();
+                full_scan_done(&a.dirs);
             }
             report(&a).await;
         }
