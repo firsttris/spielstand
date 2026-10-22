@@ -5,7 +5,7 @@ mod common;
 
 use std::{sync::Arc, time::Duration};
 
-use common::{GAME, Pc, pc, server, server_contents};
+use common::{GAME, Pc, pc, pc_with, server, server_contents};
 use spielstand_agent::{
     client::Client,
     daemon::{Timings, run_with},
@@ -261,4 +261,34 @@ async fn playing_on_after_loading_a_version_in_backup_mode_is_no_conflict() {
         assert_eq!(outcome, Outcome::Uploaded, "{session}");
     }
     assert_eq!(s.game(GAME).await["conflict"], false);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_agent_is_online_before_it_has_looked_through_the_disk() {
+    let s = server().await;
+    let slow = pc_with(&s, "desktop", |home| {
+        let mut games = std::collections::BTreeMap::new();
+        games.insert(GAME.to_string(), vec![home.join(".local/share/EldenRing")]);
+        let scanner = spielstand_agent::engine::FakeScanner {
+            anchors: spielstand_core::portable::Anchors {
+                home: home.to_path_buf(),
+                roots: vec![],
+            },
+            games,
+            scan_time: Duration::from_secs(5),
+            ..Default::default()
+        };
+        (scanner, Default::default())
+    })
+    .await;
+    let daemon = start(&slow);
+    let started = std::time::Instant::now();
+    while !s.state.hub.is_online(&slow.agent.config.device_id) {
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the agent waited for the scan before it connected"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    daemon.abort();
 }

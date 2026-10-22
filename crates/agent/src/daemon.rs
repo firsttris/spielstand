@@ -352,14 +352,18 @@ pub async fn run(agent: Agent) -> anyhow::Result<()> {
 pub async fn run_with(agent: Agent, timings: Timings) -> anyhow::Result<()> {
     let playing: Playing = Arc::default();
     agent.refresh_settings().await;
-    discover(&agent, &BTreeMap::new()).await;
-    report(&agent).await;
+    // Looking through the disk takes minutes with many games; the live connection (and with it
+    // "online" and the agent's version in the web UI) does not wait for it. The save watcher
+    // follows the games that scan finds, so it starts after it.
+    let (a, t) = (agent.clone(), timings.clone());
+    tokio::spawn(async move {
+        discover(&a, &BTreeMap::new()).await;
+        report(&a).await;
+        watch_saves(&a, &t).await;
+    });
 
     let (a, p, every) = (agent.clone(), playing.clone(), timings.process_poll);
     tokio::spawn(async move { watch_processes(&a, &p, every).await });
-
-    let (a, t) = (agent.clone(), timings.clone());
-    tokio::spawn(async move { watch_saves(&a, &t).await });
 
     let (a, p, t) = (agent.clone(), playing.clone(), timings.clone());
     tokio::spawn(async move {
