@@ -18,6 +18,7 @@ use crate::{
     disk, emulators,
     running::{self, Watcher},
     sync::{Mode, Outcome},
+    update,
     watch::{self, Debounce},
 };
 
@@ -101,6 +102,7 @@ async fn on_message(agent: &Agent, message: ServerMessage, playing: &BTreeMap<St
             result
         }
         ServerMessage::BackUp { game } => back_up_now(agent, &game).await,
+        ServerMessage::Update => update(agent, playing).await,
         ServerMessage::Settings { settings } => {
             agent.apply_settings(settings);
             discover(agent, playing).await;
@@ -112,6 +114,25 @@ async fn on_message(agent: &Agent, message: ServerMessage, playing: &BTreeMap<St
     if let Err(e) = result {
         tracing::warn!("server message: {e:#}");
     }
+}
+
+/// Never while a game runs: its saves are backed up when it ends, by this agent.
+async fn update(agent: &Agent, playing: &BTreeMap<String, (u32, Instant)>) -> anyhow::Result<()> {
+    if !playing.is_empty() || !running::wrapped(&agent.dirs).is_empty() {
+        agent
+            .ui
+            .info(
+                "Spielstand-Agent nicht aktualisiert",
+                "Gerade läuft ein Spiel. Beende es und versuche es erneut.",
+            )
+            .await;
+        return Ok(());
+    }
+    let exe = update::current_exe()?;
+    let binary = agent.client.agent_binary().await?;
+    let version = update::replace(&exe, &binary).await?;
+    tracing::info!("updated to {version}, restarting");
+    Err(update::restart(&exe))
 }
 
 async fn back_up_now(agent: &Agent, game: &str) -> anyhow::Result<()> {

@@ -21,6 +21,7 @@ pub mod skill;
 pub mod store;
 pub mod sync;
 pub mod text;
+pub mod update;
 pub mod watch;
 
 use std::sync::Arc;

@@ -9,4 +9,8 @@ stellwerkAgent: boolean,
 /**
  * Prefixr's configuration was found here.
  */
-prefixr: boolean, games: Array<GameReport>, };
+prefixr: boolean, 
+/**
+ * The agent can update itself when the web UI asks (older agents lack this).
+ */
+canUpdate: boolean, games: Array<GameReport>, };

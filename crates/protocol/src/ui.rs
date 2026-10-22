@@ -37,6 +37,10 @@ shared! {
         pub game_folders: Vec<String>,
         pub stellwerk_agent: bool,
         pub prefixr: bool,
+        /// The agent is older than the server.
+        pub outdated: bool,
+        /// The agent can be updated from the web UI; an older one needs the update command.
+        pub can_update: bool,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

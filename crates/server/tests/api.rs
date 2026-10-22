@@ -196,6 +196,84 @@ async fn pairing_again_keeps_the_device() {
 }
 
 #[tokio::test]
+async fn an_older_agent_is_shown_and_updated_over_its_live_connection() {
+    let s = start().await;
+    let a = s.pair("zentrale").await;
+    let device = |devices: serde_json::Value| devices[0].clone();
+    let devices = || async {
+        s.admin(Method::GET, "/api/devices")
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap()
+    };
+    let update = || async {
+        s.admin(Method::POST, &format!("/api/devices/{}/update", a.device_id))
+            .send()
+            .await
+            .unwrap()
+            .status()
+    };
+    assert_eq!(update().await, 409, "an offline device cannot be updated");
+
+    let mut req = format!("{}{}", s.url.replace("http", "ws"), paths::WS)
+        .into_client_request()
+        .unwrap();
+    req.headers_mut()
+        .insert("authorization", format!("Bearer {}", a.token).parse().unwrap());
+    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+    ws.next().await.unwrap().unwrap();
+    ws.send(Message::Text(r#"{"type":"hello","agentVersion":"0.0.1"}"#.into()))
+        .await
+        .unwrap();
+    ws.send(Message::Text(r#"{"type":"ping"}"#.into())).await.unwrap();
+    ws.next().await.unwrap().unwrap();
+    let old = device(devices().await);
+    assert_eq!(old["outdated"], true);
+    assert_eq!(
+        old["canUpdate"], false,
+        "only a report says the agent can update itself"
+    );
+
+    s.agent(&a, Method::POST, paths::REPORT)
+        .json(
+            &serde_json::json!({ "stellwerkAgent": false, "prefixr": false, "canUpdate": true, "games": [] }),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(device(devices().await)["canUpdate"], true);
+
+    assert!(update().await.is_success());
+    let sent = ws.next().await.unwrap().unwrap();
+    assert_eq!(sent.to_text().unwrap(), r#"{"type":"update"}"#);
+
+    ws.send(Message::Text(
+        format!(
+            r#"{{"type":"hello","agentVersion":"{}"}}"#,
+            env!("CARGO_PKG_VERSION")
+        )
+        .into(),
+    ))
+    .await
+    .unwrap();
+    ws.send(Message::Text(r#"{"type":"ping"}"#.into())).await.unwrap();
+    ws.next().await.unwrap().unwrap();
+    assert_eq!(device(devices().await)["outdated"], false);
+}
+
+#[test]
+fn only_lower_versions_are_older_than_the_server() {
+    use spielstand_server::queries::older_than_server;
+    assert!(older_than_server("0.0.1"));
+    assert!(!older_than_server(env!("CARGO_PKG_VERSION")));
+    assert!(!older_than_server("99.0.0"));
+    assert!(!older_than_server("test"));
+}
+
+#[tokio::test]
 async fn presence_is_seen_by_other_devices() {
     let s = start().await;
     let a = s.pair("zentrale").await;

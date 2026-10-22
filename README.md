@@ -72,6 +72,8 @@ it shows on each PC, as your normal user:
 curl -fsSL http://homeserver:8467/install.sh | sh -s -- K7Q-2MX
 ```
 
+Updates later: after a server update, **Devices → Update** brings each PC's agent to the same version.
+
 Podman Quadlet, Google Drive and everything else: [installation guide](https://firsttris.github.io/spielstand/installation.html).
 
 ## ✨ Features
@@ -129,7 +131,7 @@ Podman Quadlet, Google Drive and everything else: [installation guide](https://f
     <td><img src="docs/screenshots/versions.png" alt="Version timeline of a game with the files that change when loading it on a PC"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/devices.png" alt="Devices page: PCs and Steam Deck with online status and the game currently played"></td>
+    <td><img src="docs/screenshots/devices.png" alt="Devices page: PCs and Steam Deck with online status, the game currently played and agent updates"></td>
     <td><img src="docs/screenshots/pairing.png" alt="Pairing a new PC with a one-line install command"></td>
   </tr>
   <tr>

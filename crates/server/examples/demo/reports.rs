@@ -22,6 +22,7 @@ pub fn living_room() -> Value {
     hollow["effectiveMode"] = json!("backup");
     json!({
         "stellwerkAgent": true,
+        "canUpdate": true,
         "prefixr": true,
         "games": [
             game(
@@ -80,6 +81,7 @@ pub fn steam_deck() -> Value {
     pixel["proposed"] = json!(true);
     json!({
         "stellwerkAgent": false,
+        "canUpdate": true,
         "prefixr": true,
         "games": [
             zelda,

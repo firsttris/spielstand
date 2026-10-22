@@ -44,6 +44,22 @@ test("devices show who is online and what is played", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Arbeitszimmer" }).getByText("Offline")).toBeVisible();
 });
 
+test("an older agent is updated with a click, one that cannot do it shows the command", async ({ page }) => {
+  await login(page, "/devices");
+  const living = page.getByRole("region", { name: "Wohnzimmer-PC" });
+  await expect(living.getByText("Update verfügbar")).toBeVisible();
+  await expect(living.getByText(/Agent 0\.1\.2 → \d+\.\d+\.\d+/)).toBeVisible();
+  await living.getByRole("button", { name: "Aktualisieren" }).click();
+  await expect(living.getByText(/Wird aktualisiert/)).toBeVisible();
+
+  const office = page.getByRole("region", { name: "Arbeitszimmer" });
+  await expect(office.getByText("Update verfügbar")).toBeVisible();
+  await expect(office.locator("code")).toHaveText(
+    /^curl -fsSL http:\/\/127\.0\.0\.1:\d+\/install\.sh \| sh$/,
+  );
+  await expect(page.getByRole("region", { name: "Steam Deck" }).getByText("Update verfügbar")).toHaveCount(0);
+});
+
 test("pairing shows a one-line install command and the update without a code", async ({ page, request }) => {
   await login(page, "/devices");
   await page.getByRole("button", { name: "Gerät hinzufügen" }).click();

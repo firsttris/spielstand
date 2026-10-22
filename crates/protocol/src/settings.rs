@@ -168,6 +168,9 @@ shared! {
         pub stellwerk_agent: bool,
         /// Prefixr's configuration was found here.
         pub prefixr: bool,
+        /// The agent can update itself when the web UI asks (older agents lack this).
+        #[serde(default)]
+        pub can_update: bool,
         pub games: Vec<GameReport>,
     }
 

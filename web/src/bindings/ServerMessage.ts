@@ -4,4 +4,4 @@ import type { AgentSettings } from "./AgentSettings";
 /**
  * Server → agent over the live connection.
  */
-export type ServerMessage = { "type": "newHead", game: string, version: string, device: string, } | { "type": "restore", game: string, version: string, } | { "type": "backUp", game: string, } | { "type": "settings", settings: AgentSettings, } | { "type": "pong" };
+export type ServerMessage = { "type": "newHead", game: string, version: string, device: string, } | { "type": "restore", game: string, version: string, } | { "type": "backUp", game: string, } | { "type": "settings", settings: AgentSettings, } | { "type": "update" } | { "type": "pong" };

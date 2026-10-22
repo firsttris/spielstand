@@ -30,6 +30,20 @@ async fn playing_by_game(state: &AppState) -> anyhow::Result<BTreeMap<String, St
         .collect())
 }
 
+/// Whether an agent's version is below the server's; versions that are not `x.y.z` never are.
+pub fn older_than_server(agent: &str) -> bool {
+    let parse = |v: &str| -> Option<Vec<u64>> {
+        v.trim_start_matches('v')
+            .split('.')
+            .map(|p| p.parse().ok())
+            .collect()
+    };
+    match (parse(agent), parse(env!("CARGO_PKG_VERSION"))) {
+        (Some(agent), Some(server)) => agent < server,
+        _ => false,
+    }
+}
+
 pub async fn devices(state: &AppState) -> anyhow::Result<Vec<Device>> {
     let rows = sqlx::query(
         "SELECT d.*, (SELECT COUNT(*) FROM conflicts c WHERE c.device = d.id AND c.resolved_at IS NULL) AS open
@@ -50,6 +64,8 @@ pub async fn devices(state: &AppState) -> anyhow::Result<Vec<Device>> {
                 game_folders: serde_json::from_str(&folders).unwrap_or_default(),
                 stellwerk_agent: report.as_ref().is_some_and(|r| r.stellwerk_agent),
                 prefixr: report.as_ref().is_some_and(|r| r.prefixr),
+                can_update: report.as_ref().is_some_and(|r| r.can_update),
+                outdated: older_than_server(&r.try_get::<String, _>("agent_version")?),
                 online: state.hub.is_online(&id),
                 name: r.try_get("name")?,
                 hostname: r.try_get("hostname")?,

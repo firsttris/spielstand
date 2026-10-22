@@ -108,6 +108,7 @@ impl Agent {
         let report = tokio::task::spawn_blocking(move || DeviceReport {
             stellwerk_agent: agent.sources.stellwerk_installed(),
             prefixr: agent.sources.prefixr_games().is_some(),
+            can_update: true,
             games: games.iter().map(|g| agent.game_report(g)).collect(),
         })
         .await?;

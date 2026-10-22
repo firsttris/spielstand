@@ -66,6 +66,7 @@ export const api = {
   downloadUrl: (id: string) => `/api/versions/${enc(id)}/download`,
   devices: () => call<Device[]>("GET", "/api/devices"),
   removeDevice: (id: string) => call<void>("DELETE", `/api/devices/${enc(id)}`),
+  updateDevice: (id: string) => call<void>("POST", `/api/devices/${enc(id)}/update`),
   pairCode: () => call<PairCode>("POST", "/api/pair-codes"),
   activity: (limit = 50) => call<Activity[]>("GET", `/api/activity?limit=${limit}`),
   importLudusavi: (source: string) => call<ImportReport>("POST", "/api/import", { source }),
