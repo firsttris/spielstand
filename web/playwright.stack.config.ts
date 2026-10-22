@@ -29,7 +29,9 @@ export default defineConfig({
   webServer: {
     command: stack,
     cwd: "..",
-    url: `http://127.0.0.1:${port}/healthz`,
+    // The control port opens last, once both PCs are paired and running; the server is up long
+    // before that.
+    url: `http://127.0.0.1:${control}/pcs`,
     env: {
       SPIELSTAND_LISTEN: `127.0.0.1:${port}`,
       SPIELSTAND_STACK_CONTROL: `127.0.0.1:${control}`,
