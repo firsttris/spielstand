@@ -340,11 +340,11 @@ async fn pair_code(
         .execute(&state.db)
         .await?;
     let url = server_url(&state, &headers);
-    let command = format!("curl -fsSL {url}/install.sh | sh -s -- {code}");
     Ok(Json(PairCode {
+        command: format!("curl -fsSL {url}/install.sh | sh -s -- {code}"),
+        update_command: format!("curl -fsSL {url}/install.sh | sh"),
         code,
         expires_at,
-        command,
     }))
 }
 

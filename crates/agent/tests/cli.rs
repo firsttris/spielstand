@@ -51,6 +51,7 @@ impl Cli {
             hostname: "desktop".into(),
             os: "test".into(),
             agent_version: "test".into(),
+            previous: None,
         };
         let paired = Client::pair(&server.url, &req).await.unwrap();
         AgentConfig {
@@ -286,4 +287,52 @@ async fn without_the_server_nothing_is_proposed_and_it_says_so() {
         "{}",
         proposed.stderr
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pairing_again_keeps_this_pc_one_device_with_its_settings() {
+    let server = common::server().await;
+    let cli = Cli::paired(&server).await;
+    let dirs = Dirs::under(&cli.root.join("agent"));
+    let before = AgentConfig::load(&dirs).unwrap();
+    AgentConfig {
+        restore_steam_cloud_games: true,
+        ..before.clone()
+    }
+    .save(&dirs)
+    .unwrap();
+    let code: Value = server
+        .admin(reqwest::Method::POST, "/api/pair-codes")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    let ran = cli
+        .run(&[
+            "pair",
+            "--server",
+            &server.url,
+            "--code",
+            code["code"].as_str().unwrap(),
+        ])
+        .await;
+    assert!(ran.ok, "{}", ran.stderr);
+
+    let after = AgentConfig::load(&dirs).unwrap();
+    assert_eq!(after.device_id, before.device_id);
+    assert_ne!(after.token, before.token);
+    assert_eq!(after.name, "desktop");
+    assert!(after.restore_steam_cloud_games);
+    let devices: Vec<Value> = server
+        .admin(reqwest::Method::GET, "/api/devices")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(devices.len(), 1, "{devices:?}");
 }

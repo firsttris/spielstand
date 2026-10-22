@@ -37,12 +37,13 @@ test("devices show who is online and what is played", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Arbeitszimmer" }).getByText("Offline")).toBeVisible();
 });
 
-test("pairing shows a one-line install command", async ({ page, request }) => {
+test("pairing shows a one-line install command and the update without a code", async ({ page, request }) => {
   await login(page, "/devices");
   await page.getByRole("button", { name: "Gerät hinzufügen" }).click();
   const dialog = page.getByRole("dialog", { name: "Neues Gerät koppeln" });
-  const command = dialog.locator("code");
+  const [command, update] = [dialog.locator("code").first(), dialog.locator("code").last()];
   await expect(command).toContainText(/curl -fsSL http:\/\/127\.0\.0\.1:\d+\/install\.sh \| sh -s -- \S+/);
+  await expect(update).toHaveText(/^curl -fsSL http:\/\/127\.0\.0\.1:\d+\/install\.sh \| sh$/);
   await expect(dialog.getByText("Warte auf das neue Gerät …")).toBeVisible();
 
   const script = await request.get("/install.sh");

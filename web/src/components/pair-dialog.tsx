@@ -55,6 +55,10 @@ export function PairDialog({ children }: { children: React.ReactNode }) {
           <li>{m.pair_step2()}</li>
           <li>{m.pair_step3()}</li>
         </ol>
+        <p className="text-[13px] text-muted-foreground">
+          {m.pair_update()}{" "}
+          <code className="font-mono text-foreground">{code.data?.updateCommand ?? "…"}</code>
+        </p>
         {fresh ? (
           <p className="flex items-center gap-2 text-sm text-success">
             <Dot className="bg-emerald-400" /> {m.pair_done({ device: fresh.name })}

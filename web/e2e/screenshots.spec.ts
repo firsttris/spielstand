@@ -50,7 +50,7 @@ test("devices", async ({ page }) => {
 test("pairing", async ({ page }) => {
   await page.goto("/devices");
   await page.getByRole("button", { name: "Add device" }).click();
-  await expect(page.getByRole("dialog").locator("code")).toContainText("install.sh");
+  await expect(page.getByRole("dialog").locator("code").first()).toContainText("install.sh");
   await page.screenshot({ path: `${dir}/pairing.png` });
 });
 

@@ -3,6 +3,10 @@
 #
 #   curl -fsSL __SPIELSTAND_SERVER__/install.sh | sh -s -- <pairing-code>
 #
+# On a PC that is already paired with this server it updates the agent; no code is needed:
+#
+#   curl -fsSL __SPIELSTAND_SERVER__/install.sh | sh
+#
 # No root needed: the binary goes to ~/.local/bin, the service is a systemd user unit.
 # Environment: SPIELSTAND_NAME (device name), SPIELSTAND_NO_SYSTEMD=1 (skip the service).
 set -eu
@@ -14,7 +18,13 @@ CODE="${1:-}"
 say() { printf '%s\n' "$*"; }
 fail() { printf 'spielstand: %s\n' "$*" >&2; exit 1; }
 
-[ -n "$CODE" ] || fail "Kopplungscode fehlt: curl -fsSL $SERVER/install.sh | sh -s -- <code>"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spielstand"
+[ -z "${SPIELSTAND_AGENT_HOME:-}" ] || CONFIG_DIR="$SPIELSTAND_AGENT_HOME/config"
+PAIRED=0
+grep -qF "server = \"${SERVER%/}\"" "$CONFIG_DIR/agent.toml" 2>/dev/null && PAIRED=1
+
+[ -n "$CODE" ] || [ "$PAIRED" = 1 ] ||
+  fail "Kopplungscode fehlt: curl -fsSL $SERVER/install.sh | sh -s -- <code>"
 [ "$(id -u)" != 0 ] || fail "bitte als normaler Benutzer ausführen, nicht als root"
 command -v curl >/dev/null 2>&1 || fail "curl wird gebraucht"
 
@@ -36,17 +46,29 @@ chmod 0755 "$TMP"
 mv "$TMP" "$BIN"
 trap - EXIT
 
-NAME="${SPIELSTAND_NAME:-}"
-if [ -z "$NAME" ]; then
-  NAME="$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo pc)"
-  if [ -r /dev/tty ] && [ -t 1 ]; then
-    printf 'Name für dieses Gerät [%s]: ' "$NAME"
-    read -r ANSWER </dev/tty || ANSWER=""
-    [ -n "$ANSWER" ] && NAME="$ANSWER"
+pair() {
+  NAME="${SPIELSTAND_NAME:-}"
+  if [ "$PAIRED" = 1 ] && [ -z "$NAME" ]; then
+    # Pairing again keeps the device and its name.
+    "$BIN" pair --server "$SERVER" --code "$CODE"
+    return
   fi
-fi
+  if [ -z "$NAME" ]; then
+    NAME="$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo pc)"
+    if [ -r /dev/tty ] && [ -t 1 ]; then
+      printf 'Name für dieses Gerät [%s]: ' "$NAME"
+      read -r ANSWER </dev/tty || ANSWER=""
+      [ -n "$ANSWER" ] && NAME="$ANSWER"
+    fi
+  fi
+  "$BIN" pair --server "$SERVER" --code "$CODE" --name "$NAME"
+}
 
-"$BIN" pair --server "$SERVER" --code "$CODE" --name "$NAME"
+if [ -n "$CODE" ]; then
+  pair
+else
+  say "Bereits mit $SERVER gekoppelt: nur der Agent wird aktualisiert."
+fi
 
 if [ "${SPIELSTAND_NO_SYSTEMD:-0}" != 1 ] && command -v systemctl >/dev/null 2>&1; then
   UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
@@ -68,13 +90,15 @@ IOSchedulingClass=idle
 WantedBy=default.target
 UNIT
   systemctl --user daemon-reload
-  systemctl --user enable --now spielstand-agent.service
+  systemctl --user enable spielstand-agent.service
+  # restart, not start: after an update the old agent would keep running.
+  systemctl --user restart spielstand-agent.service
   say "Dienst läuft: systemctl --user status spielstand-agent"
 else
   say "Ohne systemd: starte den Agent mit '$BIN run'"
 fi
 
 say ""
-say "Fertig. \"$NAME\" ist mit $SERVER gekoppelt."
+say "Fertig: Spielstand-Agent $VERSION, gekoppelt mit $SERVER."
 say "Optional für Steam-Spiele (lädt vor dem Start, sichert danach):"
 say "  Startoption: $BIN launch %command%"

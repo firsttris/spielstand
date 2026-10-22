@@ -1,6 +1,7 @@
 #!/bin/sh
 # End-to-end test of the one-line install: a fresh server hands out install.sh and the agent,
-# the script installs and pairs it, and the server lists the new device.
+# the script installs and pairs it, and the server lists the new device. Running it again, without
+# a code and with a new one, updates the agent and keeps that one device.
 #
 #   install/test.sh target/debug
 #
@@ -33,10 +34,21 @@ api -d '{"password":"install-test"}' "$URL/api/setup" >/dev/null
 CODE="$(api -X POST "$URL/api/pair-codes" | sed -n 's/.*"code":"\([^"]*\)".*/\1/p')"
 [ -n "$CODE" ] || { echo "no pairing code" >&2; exit 1; }
 
-HOME="$WORK/home" XDG_CONFIG_HOME="$WORK/home/.config" XDG_DATA_HOME="$WORK/home/.local/share" \
-  SPIELSTAND_NAME="install-test" SPIELSTAND_NO_SYSTEMD=1 \
-  sh -c "curl -fsSL '$URL/install.sh' | sh -s -- '$CODE'"
+install() {
+  HOME="$WORK/home" XDG_CONFIG_HOME="$WORK/home/.config" XDG_DATA_HOME="$WORK/home/.local/share" \
+    SPIELSTAND_NO_SYSTEMD=1 "$@" sh -c "curl -fsSL '$URL/install.sh' | sh -s -- $CODE"
+}
+devices() { api "$URL/api/devices" | grep -o '"name":"install-test"' | wc -l; }
 
+install env SPIELSTAND_NAME="install-test"
 [ -x "$WORK/home/.local/bin/spielstand-agent" ] || { echo "agent not installed" >&2; exit 1; }
-api "$URL/api/devices" | grep -q '"name":"install-test"' || { echo "device not paired" >&2; exit 1; }
+[ "$(devices)" = 1 ] || { echo "device not paired" >&2; exit 1; }
+
+CODE=""
+install env
+[ "$(devices)" = 1 ] || { echo "update without a code changed the devices" >&2; exit 1; }
+
+CODE="$(api -X POST "$URL/api/pair-codes" | sed -n 's/.*"code":"\([^"]*\)".*/\1/p')"
+install env
+[ "$(devices)" = 1 ] || { echo "pairing again added a second device" >&2; exit 1; }
 echo "install test passed"

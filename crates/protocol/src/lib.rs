@@ -158,6 +158,17 @@ shared! {
         pub hostname: String,
         pub os: String,
         pub agent_version: String,
+        /// The pairing this PC already has. When it is still valid the server keeps that device
+        /// and only gives it a new token, so pairing again (e.g. to update) never adds a second one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub previous: Option<PreviousPairing>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct PreviousPairing {
+        pub device_id: String,
+        pub token: String,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
