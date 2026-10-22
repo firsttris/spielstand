@@ -392,6 +392,8 @@ pub struct FakeScanner {
     pub wine_prefixes: RwLock<Vec<PathBuf>>,
     pub game_folders: RwLock<Vec<PathBuf>>,
     pub own_prefixes: RwLock<BTreeMap<String, PathBuf>>,
+    /// How long looking through the disk takes (a real one with many games takes minutes).
+    pub scan_time: std::time::Duration,
 }
 
 impl FakeScanner {
@@ -450,6 +452,7 @@ impl Scanner for FakeScanner {
         out
     }
     fn games_with_saves(&self) -> Vec<String> {
+        std::thread::sleep(self.scan_time);
         let names: std::collections::BTreeSet<&String> =
             self.games.keys().chain(self.profile_saves.keys()).collect();
         names
