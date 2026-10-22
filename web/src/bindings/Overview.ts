@@ -3,4 +3,8 @@ import type { HeadSummary } from "./HeadSummary";
 import type { MirrorStatus } from "./MirrorStatus";
 import type { SaveMode } from "./SaveMode";
 
-export type Overview = { games: number, versions: number, storedBytes: number, conflicts: number, devices: number, devicesOnline: number, lastVersion: HeadSummary | null, lastVersionGame: string | null, lastVersionDevice: string | null, mirror: MirrorStatus, version: string, alerts: number, defaultMode: SaveMode, };
+export type Overview = { games: number, versions: number, storedBytes: number, conflicts: number, devices: number, devicesOnline: number, lastVersion: HeadSummary | null, lastVersionGame: string | null, lastVersionDevice: string | null, mirror: MirrorStatus, version: string, 
+/**
+ * Updates the agent on a PC that is already paired, with the address PCs use.
+ */
+updateCommand: string, alerts: number, defaultMode: SaveMode, };

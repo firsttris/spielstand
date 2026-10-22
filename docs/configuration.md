@@ -32,6 +32,27 @@ spielstand-server health                      # for the container health check
 Spielstand needs WebSockets on `/api/agent/ws`. Set `SPIELSTAND_PUBLIC_URL` to the outside address
 and `SPIELSTAND_SECURE_COOKIES=true` when it is served over HTTPS.
 
+`SPIELSTAND_PUBLIC_URL` is also the address the install and update commands in the web UI show.
+A PC paired under one address updates and pairs again under another one of the same host without
+becoming a second device.
+
+#### A proxy with its own certificate authority
+
+A proxy for a name like `spielstand.home` usually signs with a CA of its own (Caddy's
+`tls internal`), which no PC trusts yet. The agent uses the system's certificates, like curl and
+the browser, so trust that CA once on every PC (as root; Fedora, Bazzite):
+
+```sh
+sudo cp root.crt /etc/pki/ca-trust/source/anchors/caddy-local.crt && sudo update-ca-trust
+```
+
+Caddy keeps it in its data folder under `pki/authorities/local/root.crt` (in the container
+usually `/data/caddy/pki/authorities/local/root.crt`). On Debian and Ubuntu it goes to
+`/usr/local/share/ca-certificates/caddy-local.crt`, followed by `sudo update-ca-certificates`; on
+SteamOS and Arch `sudo trust anchor --store root.crt` does it.
+Then set `SPIELSTAND_PUBLIC_URL=https://spielstand.home` and run the install command shown under
+**Devices** once on each PC; it stays the same device.
+
 ## Agent
 
 `~/.config/spielstand/agent.toml`, written when pairing:

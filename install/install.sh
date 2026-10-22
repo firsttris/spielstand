@@ -20,8 +20,10 @@ fail() { printf 'spielstand: %s\n' "$*" >&2; exit 1; }
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spielstand"
 [ -z "${SPIELSTAND_AGENT_HOME:-}" ] || CONFIG_DIR="$SPIELSTAND_AGENT_HOME/config"
+# Paired at all, under whatever address: the same server is often reachable under several
+# (http://homeserver:8467 and https://spielstand.home behind a proxy).
 PAIRED=0
-grep -qF "server = \"${SERVER%/}\"" "$CONFIG_DIR/agent.toml" 2>/dev/null && PAIRED=1
+[ -f "$CONFIG_DIR/agent.toml" ] && PAIRED=1
 
 [ -n "$CODE" ] || [ "$PAIRED" = 1 ] ||
   fail "Kopplungscode fehlt: curl -fsSL $SERVER/install.sh | sh -s -- <code>"
@@ -67,7 +69,7 @@ pair() {
 if [ -n "$CODE" ]; then
   pair
 else
-  say "Bereits mit $SERVER gekoppelt: nur der Agent wird aktualisiert."
+  say "Bereits gekoppelt: nur der Agent wird aktualisiert."
 fi
 
 if [ "${SPIELSTAND_NO_SYSTEMD:-0}" != 1 ] && command -v systemctl >/dev/null 2>&1; then

@@ -86,12 +86,21 @@ enum Command {
     },
 }
 
+/// One server is often reachable under several URLs (port 8467 and a proxy with TLS); its host
+/// name tells them apart from another server, so the current token is only sent to that host.
+fn same_host(a: &str, b: &str) -> bool {
+    let host = |url: &str| reqwest::Url::parse(url).ok()?.host_str().map(str::to_lowercase);
+    host(a).is_some() && host(a) == host(b)
+}
+
 async fn pair(dirs: &Dirs, server: String, code: String, name: Option<String>) -> anyhow::Result<()> {
     let server = server.trim_end_matches('/').to_string();
     let hostname = sysinfo::System::host_name().unwrap_or_else(|| "pc".into());
     let os = sysinfo::System::long_os_version().unwrap_or_else(|| "Linux".into());
     // Pairing again with the same server keeps the device; another server starts afresh.
-    let current = AgentConfig::load(dirs).ok().filter(|c| c.server == server);
+    let current = AgentConfig::load(dirs)
+        .ok()
+        .filter(|c| same_host(&c.server, &server));
     let name = name
         .filter(|n| !n.trim().is_empty())
         .or_else(|| current.as_ref().map(|c| c.name.clone()))
@@ -202,5 +211,23 @@ async fn main() -> anyhow::Result<()> {
         Command::Choose { game, path } => commands::choose(&dirs, game, path).await,
         Command::BackupOnly { game } => commands::backup_only(&dirs, &game).await,
         Command::Skill { command } => commands::skill_command(command),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_host;
+
+    #[test]
+    fn the_same_server_under_another_url_is_the_same_host() {
+        assert!(same_host(
+            "http://spielstand.home:8467",
+            "https://Spielstand.home/"
+        ));
+        assert!(!same_host(
+            "http://spielstand.home:8467",
+            "http://other.home:8467"
+        ));
+        assert!(!same_host("not a url", "not a url"));
     }
 }

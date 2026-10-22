@@ -167,8 +167,14 @@ async fn logout(State(state): State<AppState>, _admin: Admin, jar: CookieJar) ->
     Ok(jar.remove(Cookie::build(SESSION_COOKIE).path("/").build()))
 }
 
-async fn overview(State(state): State<AppState>, _admin: Admin) -> ApiResult<Json<Overview>> {
-    Ok(Json(queries::overview(&state).await?))
+async fn overview(
+    State(state): State<AppState>,
+    _admin: Admin,
+    headers: HeaderMap,
+) -> ApiResult<Json<Overview>> {
+    Ok(Json(
+        queries::overview(&state, &server_url(&state, &headers)).await?,
+    ))
 }
 
 async fn games(State(state): State<AppState>, _admin: Admin) -> ApiResult<Json<Vec<GameSummary>>> {
@@ -355,7 +361,7 @@ async fn pair_code(
     let url = server_url(&state, &headers);
     Ok(Json(PairCode {
         command: format!("curl -fsSL {url}/install.sh | sh -s -- {code}"),
-        update_command: format!("curl -fsSL {url}/install.sh | sh"),
+        update_command: queries::update_command(&url),
         code,
         expires_at,
     }))

@@ -12,7 +12,7 @@ export function AgentUpdate({ device }: { device: Device }) {
   const update = useMutation({ mutationFn: () => api.updateDevice(device.id) });
   const [copied, setCopied] = useState(false);
   if (!device.outdated) return null;
-  const command = `curl -fsSL ${window.location.origin}/install.sh | sh`;
+  const command = overview.data?.updateCommand ?? "…";
   const status = () => {
     if (!device.online) return m.update_offline();
     if (device.playing) return m.update_playing();

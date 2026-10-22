@@ -167,7 +167,16 @@ mod tests {
         // Keeps the name `sleep`: uutils (Ubuntu 26.04) is one binary that picks its tool by name.
         let exe = install.join("sleep");
         std::fs::copy("/bin/sleep", &exe).unwrap();
-        let mut child = std::process::Command::new(&exe).arg("30").spawn().unwrap();
+        // A file just written can be briefly "busy" for exec while another test forks (ETXTBSY).
+        let mut child = (0..20)
+            .find_map(|_| match std::process::Command::new(&exe).arg("30").spawn() {
+                Err(e) if e.raw_os_error() == Some(26) => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    None
+                }
+                spawned => Some(spawned.unwrap()),
+            })
+            .expect("the copied binary stayed busy");
         let installs = vec![("Some Game".to_string(), dir.path().join("Games/Some Game"))];
         let mut watcher = Watcher::default();
         // Right after `spawn` the child may not have exec'd yet and still shows the test binary.

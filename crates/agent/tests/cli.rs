@@ -295,8 +295,10 @@ async fn pairing_again_keeps_this_pc_one_device_with_its_settings() {
     let cli = Cli::paired(&server).await;
     let dirs = Dirs::under(&cli.root.join("agent"));
     let before = AgentConfig::load(&dirs).unwrap();
+    // The same server under another address (as behind a proxy) is still the same server.
     AgentConfig {
         restore_steam_cloud_games: true,
+        server: "http://127.0.0.1:1".into(),
         ..before.clone()
     }
     .save(&dirs)
