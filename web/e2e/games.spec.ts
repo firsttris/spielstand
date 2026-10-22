@@ -63,7 +63,12 @@ test("the default mode is set in the settings", async ({ page }) => {
   const mode = page.getByRole("combobox", { name: "Standardmodus" });
   await expect(mode).toHaveText("Synchronisieren");
   await mode.click();
+  // Reload only once the server has the new mode, or the page may still show the old one.
+  const saved = page.waitForResponse(
+    (r) => r.url().endsWith("/api/settings") && r.request().method() === "PUT",
+  );
   await page.getByRole("option", { name: "Nur sichern" }).click();
+  await saved;
   await page.reload();
   await expect(page.getByRole("combobox", { name: "Standardmodus" })).toHaveText("Nur sichern");
   await page.getByRole("combobox", { name: "Standardmodus" }).click();
