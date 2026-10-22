@@ -201,6 +201,8 @@ shared! {
         BackUp { game: String },
         /// The settings for this device changed.
         Settings { settings: AgentSettings },
+        /// Someone asked in the web UI to update the agent to the server's version.
+        Update,
         Pong,
     }
 

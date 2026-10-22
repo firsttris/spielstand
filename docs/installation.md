@@ -103,12 +103,19 @@ and uploads them.
 ## Updating
 
 The server: pull the new image (`docker compose pull && docker compose up -d`; the Quadlet updates
-itself with `podman auto-update`). The agent: run the install command again, without a pairing code:
+itself with `podman auto-update`).
+
+The agents: after a server update, **Devices** marks every PC whose agent is older with *Update
+available*. **Update** there makes the agent download the server's version, check that it runs,
+replace itself and restart; the PC stays the same device with its name and settings. It does not
+while a game runs on that PC, and the PC has to be online.
+
+An older agent that cannot do that yet shows the command instead, to run once on that PC, without
+a pairing code:
 
 ```sh
 curl -fsSL http://homeserver:8467/install.sh | sh
 ```
 
-It replaces the binary and restarts the service; the PC stays the same device with its name and
-settings. Running it with a new pairing code does no harm either: a PC that is still paired keeps
-its device and only gets a new token.
+Running the install command with a new pairing code does no harm either: a PC that is still paired
+keeps its device and only gets a new token.

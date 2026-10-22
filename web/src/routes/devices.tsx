@@ -4,6 +4,7 @@ import { MonitorIcon } from "lucide-react";
 import { useState } from "react";
 import type { Device } from "@/bindings/Device";
 import { ActivityList } from "@/components/activity-list";
+import { AgentUpdate } from "@/components/agent-update";
 import { GameFolders } from "@/components/game-folders";
 import { PairDialog } from "@/components/pair-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +79,7 @@ function DeviceCard({ device }: { device: Device }) {
           </>
         )}
       </dl>
+      <AgentUpdate device={device} />
       <GameFolders device={device} />
       <Button
         variant="ghost"

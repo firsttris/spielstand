@@ -43,6 +43,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/versions/{id}/download", get(download))
         .route("/api/devices", get(devices))
         .route("/api/devices/{id}", delete(remove_device))
+        .route("/api/devices/{id}/update", post(update_device))
         .route("/api/pair-codes", post(pair_code))
         .route("/api/activity", get(activity))
         .route("/api/import", post(import))
@@ -324,6 +325,18 @@ fn new_code() -> String {
     let mut rng = rand::thread_rng();
     let mut pick = || ALPHABET[rng.gen_range(0..ALPHABET.len())] as char;
     format!("{}{}{}-{}{}{}", pick(), pick(), pick(), pick(), pick(), pick())
+}
+
+/// Asks a connected agent to update itself to the server's version.
+async fn update_device(
+    State(state): State<AppState>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> ApiResult<()> {
+    if !state.hub.send(&id, ServerMessage::Update) {
+        return Err(AppError::Conflict("Das Gerät ist nicht verbunden".into()));
+    }
+    Ok(())
 }
 
 async fn pair_code(

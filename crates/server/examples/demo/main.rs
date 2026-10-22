@@ -35,6 +35,7 @@ struct Demo {
 struct Device {
     id: String,
     token: String,
+    agent_version: String,
 }
 
 #[tokio::main]
@@ -83,9 +84,13 @@ async fn main() -> anyhow::Result<()> {
 
 impl Demo {
     async fn seed(&self) -> anyhow::Result<Vec<impl Sized + use<>>> {
-        let living = self.pair("Wohnzimmer-PC", "bazzite").await?;
-        let deck = self.pair("Steam Deck", "steamos").await?;
-        let office = self.pair("Arbeitszimmer", "fedora").await?;
+        // The Wohnzimmer's agent is older and can be updated from the web UI; the Arbeitszimmer's
+        // is older still and needs the update command.
+        let living = self.pair("Wohnzimmer-PC", "bazzite", "0.1.2").await?;
+        let deck = self
+            .pair("Steam Deck", "steamos", env!("CARGO_PKG_VERSION"))
+            .await?;
+        let office = self.pair("Arbeitszimmer", "fedora", "0.1.0").await?;
         let now = Utc::now();
         let h = |hours: i64| now - Duration::hours(hours);
 
@@ -210,7 +215,7 @@ impl Demo {
         Ok(vec![self.connect(&living).await?, self.connect(&deck).await?])
     }
 
-    async fn pair(&self, name: &str, os: &str) -> anyhow::Result<Device> {
+    async fn pair(&self, name: &str, os: &str, agent_version: &str) -> anyhow::Result<Device> {
         let code: serde_json::Value = self
             .http
             .post(format!("{}/api/pair-codes", self.url))
@@ -226,7 +231,7 @@ impl Demo {
             name: name.into(),
             hostname: name.to_lowercase().replace(' ', "-"),
             os: os.into(),
-            agent_version: env!("CARGO_PKG_VERSION").into(),
+            agent_version: agent_version.into(),
             previous: None,
         };
         let res: PairResponse = self
@@ -241,6 +246,7 @@ impl Demo {
         Ok(Device {
             id: res.device_id,
             token: res.token,
+            agent_version: agent_version.into(),
         })
     }
 
@@ -360,7 +366,7 @@ impl Demo {
         req.headers_mut()
             .insert("authorization", format!("Bearer {}", device.token).parse()?);
         let (mut ws, _) = tokio_tungstenite::connect_async(req).await?;
-        let hello = serde_json::json!({ "type": "hello", "agentVersion": env!("CARGO_PKG_VERSION") });
+        let hello = serde_json::json!({ "type": "hello", "agentVersion": device.agent_version });
         ws.send(Message::Text(hello.to_string().into())).await?;
         Ok(ws)
     }

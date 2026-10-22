@@ -78,6 +78,18 @@ impl Client {
         format!("{}{path}", self.server)
     }
 
+    /// The agent binary the server hands out for this machine.
+    pub async fn agent_binary(&self) -> anyhow::Result<Vec<u8>> {
+        let path = format!("/download/agent/{}", std::env::consts::ARCH);
+        let res = self
+            .http
+            .get(self.url(&path))
+            .timeout(Duration::from_secs(300))
+            .send()
+            .await?;
+        Ok(ok(res).await?.bytes().await?.to_vec())
+    }
+
     pub async fn pair(server: &str, req: &PairRequest) -> anyhow::Result<PairResponse> {
         let res = reqwest::Client::new()
             .post(format!("{}{}", server.trim_end_matches('/'), paths::PAIR))
