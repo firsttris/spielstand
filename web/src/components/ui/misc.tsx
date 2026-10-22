@@ -26,6 +26,11 @@ export function Dot({ className }: { className?: string }) {
   return <span aria-hidden="true" className={cn("inline-block size-2 shrink-0 rounded-full", className)} />;
 }
 
+/** Pages of forms and lists stay readable on wide screens; card grids use the full width. */
+export function NarrowPage({ children }: { children: React.ReactNode }) {
+  return <div className="flex max-w-[1040px] flex-col gap-6">{children}</div>;
+}
+
 export function PageHeader({
   title,
   description,

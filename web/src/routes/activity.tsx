@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ActivityList } from "@/components/activity-list";
 import { Card, CardContent } from "@/components/ui/card";
-import { PageHeader, Skeleton } from "@/components/ui/misc";
+import { NarrowPage, PageHeader, Skeleton } from "@/components/ui/misc";
 import { api } from "@/lib/api";
 import { dateTime } from "@/lib/format";
 import { m } from "@/paraglide/messages";
@@ -16,7 +16,7 @@ function ActivityPage() {
     refetchInterval: 5_000,
   });
   return (
-    <>
+    <NarrowPage>
       <PageHeader title={m.nav_activity()} description={m.activity_subtitle()} />
       <Card>
         <CardContent>
@@ -29,6 +29,6 @@ function ActivityPage() {
           )}
         </CardContent>
       </Card>
-    </>
+    </NarrowPage>
   );
 }
