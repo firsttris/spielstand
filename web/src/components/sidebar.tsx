@@ -63,6 +63,9 @@ export function Sidebar() {
             {o.mirror.enabled &&
               ` · ${o.mirror.pending === 0 ? m.mirror_current() : m.mirror_pending({ n: o.mirror.pending })}`}
           </span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {m.nav_version({ version: o.version })}
+          </span>
         </div>
       )}
     </nav>
