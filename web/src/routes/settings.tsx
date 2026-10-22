@@ -7,7 +7,7 @@ import { modeText } from "@/components/mode-label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
-import { PageHeader } from "@/components/ui/misc";
+import { NarrowPage, PageHeader } from "@/components/ui/misc";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { relative } from "@/lib/format";
@@ -38,7 +38,7 @@ function Settings() {
   });
 
   return (
-    <>
+    <NarrowPage>
       <PageHeader title={m.nav_settings()} />
 
       <Card className="flex flex-wrap items-center gap-3 p-5">
@@ -169,6 +169,6 @@ function Settings() {
           {m.logout()}
         </Button>
       </Card>
-    </>
+    </NarrowPage>
   );
 }
