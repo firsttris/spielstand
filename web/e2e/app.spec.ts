@@ -20,6 +20,13 @@ test("the overview shows the games and the open conflict", async ({ page }) => {
   await expect(games.getByText("Läuft auf Steam Deck")).toBeVisible();
 });
 
+test("the navigation shows the server's version", async ({ page }) => {
+  await login(page);
+  await expect(
+    page.getByRole("navigation", { name: "Hauptnavigation" }).getByText(/^Version \d+\.\d+\.\d+/),
+  ).toBeVisible();
+});
+
 test("searching narrows the game list", async ({ page }) => {
   await login(page, "/games");
   await page.getByPlaceholder("Spiel suchen …").fill("hollow");

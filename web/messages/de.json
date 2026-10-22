@@ -150,6 +150,7 @@
   "nav_server": "Server",
   "nav_server_status": "Server",
   "nav_settings": "Einstellungen",
+  "nav_version": "Version {version}",
   "on_devices": "auf {devices}",
   "overview_conflicts": "{n} Spiel(e) brauchen deine Wahl",
   "overview_last": "{games} Spiele · letzte Version {when} auf {device} ({game})",
