@@ -188,6 +188,8 @@ shared! {
         pub last_version_device: Option<String>,
         pub mirror: MirrorStatus,
         pub version: String,
+        /// Updates the agent on a PC that is already paired, with the address PCs use.
+        pub update_command: String,
         #[cfg_attr(feature = "ts", ts(type = "number"))]
         pub alerts: u64,
         pub default_mode: SaveMode,

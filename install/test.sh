@@ -48,6 +48,13 @@ CODE=""
 install env
 [ "$(devices)" = 1 ] || { echo "update without a code changed the devices" >&2; exit 1; }
 
+# The same server under another address (as behind a proxy) updates without a code, too.
+URL_PAIRED="$URL"
+URL="http://localhost:$PORT"
+install env
+URL="$URL_PAIRED"
+[ "$(devices)" = 1 ] || { echo "update under another address changed the devices" >&2; exit 1; }
+
 CODE="$(api -X POST "$URL/api/pair-codes" | sed -n 's/.*"code":"\([^"]*\)".*/\1/p')"
 install env
 [ "$(devices)" = 1 ] || { echo "pairing again added a second device" >&2; exit 1; }

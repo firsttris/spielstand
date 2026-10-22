@@ -32,6 +32,13 @@ spielstand-server health                      # for the container health check
 Spielstand needs WebSockets on `/api/agent/ws`. Set `SPIELSTAND_PUBLIC_URL` to the outside address
 and `SPIELSTAND_SECURE_COOKIES=true` when it is served over HTTPS.
 
+`SPIELSTAND_PUBLIC_URL` is also the address the install and update commands in the web UI show.
+The agent trusts only the public certificate authorities (Mozilla's list built into it), not one
+of your own: behind a proxy with a local CA (Caddy's `tls internal`, for example) keep the PCs on
+the plain address and set `SPIELSTAND_PUBLIC_URL=http://homeserver:8467`. A PC paired under one
+address updates and pairs again under another one of the same host without becoming a second
+device.
+
 ## Agent
 
 `~/.config/spielstand/agent.toml`, written when pairing:

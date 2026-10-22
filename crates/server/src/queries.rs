@@ -248,7 +248,11 @@ pub async fn activity(state: &AppState, limit: i64) -> anyhow::Result<Vec<Activi
         .collect())
 }
 
-pub async fn overview(state: &AppState) -> anyhow::Result<Overview> {
+pub fn update_command(server_url: &str) -> String {
+    format!("curl -fsSL {server_url}/install.sh | sh")
+}
+
+pub async fn overview(state: &AppState, server_url: &str) -> anyhow::Result<Overview> {
     let (games, conflicts): (i64, i64) = sqlx::query_as(
         "SELECT (SELECT COUNT(*) FROM games), (SELECT COUNT(*) FROM conflicts WHERE resolved_at IS NULL)",
     )
@@ -296,6 +300,7 @@ pub async fn overview(state: &AppState) -> anyhow::Result<Overview> {
         last_version_device,
         mirror,
         version: env!("CARGO_PKG_VERSION").to_string(),
+        update_command: update_command(server_url),
         alerts: alerts::open(state, None).await?.len() as u64,
         default_mode: modes::default_mode(state).await?,
     })
