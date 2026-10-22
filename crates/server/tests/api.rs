@@ -3,7 +3,7 @@ mod common;
 use common::{start, start_with, version};
 use futures::{SinkExt, StreamExt};
 use reqwest::Method;
-use spielstand_protocol::{HeadsResponse, PromoteOutcome, UploadStatus, paths};
+use spielstand_protocol::{HeadsResponse, PreviousPairing, PromoteOutcome, UploadStatus, paths};
 use spielstand_server::{mirror, switch_titles};
 use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
 
@@ -149,6 +149,50 @@ async fn agents_without_valid_token_are_rejected() {
     let c = code["code"].as_str().unwrap().to_string();
     assert!(pair(c.clone()).await.is_success());
     assert_eq!(pair(c).await, 401);
+}
+
+#[tokio::test]
+async fn pairing_again_keeps_the_device() {
+    let s = start().await;
+    let first = s.pair("zentrale").await;
+    let previous = |a: &common::TestAgent| PreviousPairing {
+        device_id: a.device_id.clone(),
+        token: a.token.clone(),
+    };
+
+    let again = s.pair_again("zentrale", Some(previous(&first))).await;
+    assert_eq!(again.device_id, first.device_id);
+    assert_ne!(again.token, first.token);
+    // The old token is replaced, the new one works.
+    assert_eq!(
+        s.agent(&first, Method::GET, paths::HEADS)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    assert!(
+        s.agent(&again, Method::GET, paths::HEADS)
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success()
+    );
+
+    // A pairing that is no longer valid starts a new device instead of taking one over.
+    let stranger = s.pair_again("zentrale", Some(previous(&first))).await;
+    assert_ne!(stranger.device_id, first.device_id);
+    let devices: serde_json::Value = s
+        .admin(Method::GET, "/api/devices")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(devices.as_array().unwrap().len(), 2);
 }
 
 #[tokio::test]

@@ -227,6 +227,7 @@ impl Demo {
             hostname: name.to_lowercase().replace(' ', "-"),
             os: os.into(),
             agent_version: env!("CARGO_PKG_VERSION").into(),
+            previous: None,
         };
         let res: PairResponse = self
             .http

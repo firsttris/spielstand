@@ -149,6 +149,8 @@ shared! {
         pub code: String,
         pub expires_at: DateTime<Utc>,
         pub command: String,
+        /// Updates the agent on a PC that is already paired; it needs no code.
+        pub update_command: String,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

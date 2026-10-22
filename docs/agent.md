@@ -51,7 +51,7 @@ what is unclear; the game's page shows it.
 | `spielstand-agent skill install` | the skill for [Claude Code](custom-games.md#with-claude-code) |
 | `spielstand-agent sync [game]` | sync one game, or all, now |
 | `spielstand-agent launch [--game NAME] %command%` | Steam launch option: load before, back up after |
-| `spielstand-agent pair --server URL --code CODE [--name NAME]` | pair again (the install script does this) |
+| `spielstand-agent pair --server URL --code CODE [--name NAME]` | pair (the install script does this); pairing again keeps this PC the same device |
 | `spielstand-agent run` | the background service itself |
 
 `status`, `scan`, `games`, `explain` and `custom list` and `custom add` print JSON with `--json`, for

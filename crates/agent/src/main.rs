@@ -12,7 +12,7 @@ use spielstand_agent::{
     desktop::Desktop,
     running,
 };
-use spielstand_protocol::PairRequest;
+use spielstand_protocol::{PairRequest, PreviousPairing};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -87,10 +87,14 @@ enum Command {
 }
 
 async fn pair(dirs: &Dirs, server: String, code: String, name: Option<String>) -> anyhow::Result<()> {
+    let server = server.trim_end_matches('/').to_string();
     let hostname = sysinfo::System::host_name().unwrap_or_else(|| "pc".into());
     let os = sysinfo::System::long_os_version().unwrap_or_else(|| "Linux".into());
+    // Pairing again with the same server keeps the device; another server starts afresh.
+    let current = AgentConfig::load(dirs).ok().filter(|c| c.server == server);
     let name = name
         .filter(|n| !n.trim().is_empty())
+        .or_else(|| current.as_ref().map(|c| c.name.clone()))
         .unwrap_or_else(|| hostname.clone());
     let req = PairRequest {
         code,
@@ -98,18 +102,27 @@ async fn pair(dirs: &Dirs, server: String, code: String, name: Option<String>) -
         hostname,
         os,
         agent_version: env!("CARGO_PKG_VERSION").into(),
+        previous: current.as_ref().map(|c| PreviousPairing {
+            device_id: c.device_id.clone(),
+            token: c.token.clone(),
+        }),
     };
     let res = Client::pair(&server, &req).await?;
+    let kept = current.as_ref().is_some_and(|c| c.device_id == res.device_id);
     let config = AgentConfig {
-        server: server.trim_end_matches('/').to_string(),
+        server,
         device_id: res.device_id,
         token: res.token,
         name: name.clone(),
-        restore_steam_cloud_games: false,
-        question_seconds: 60,
+        restore_steam_cloud_games: current.as_ref().is_some_and(|c| c.restore_steam_cloud_games),
+        question_seconds: current.as_ref().map_or(60, |c| c.question_seconds),
     };
     config.save(dirs)?;
-    println!("\"{name}\" ist gekoppelt.");
+    if kept {
+        println!("\"{name}\" ist erneut gekoppelt (dasselbe Gerät).");
+    } else {
+        println!("\"{name}\" ist gekoppelt.");
+    }
     Ok(())
 }
 

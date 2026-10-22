@@ -4,7 +4,9 @@ use std::path::Path;
 
 use chrono::Utc;
 use spielstand_core::pack::{self, Source};
-use spielstand_protocol::{PairRequest, PairResponse, Trigger, UploadOutcome, VersionMeta, paths};
+use spielstand_protocol::{
+    PairRequest, PairResponse, PreviousPairing, Trigger, UploadOutcome, VersionMeta, paths,
+};
 use spielstand_server::{AppState, Settings, framing, router};
 
 pub struct TestServer {
@@ -67,6 +69,11 @@ impl TestServer {
     }
 
     pub async fn pair(&self, name: &str) -> TestAgent {
+        self.pair_again(name, None).await
+    }
+
+    /// Pairs with a new code, handing in the pairing the device already has.
+    pub async fn pair_again(&self, name: &str, previous: Option<PreviousPairing>) -> TestAgent {
         let code: serde_json::Value = self
             .admin(reqwest::Method::POST, "/api/pair-codes")
             .send()
@@ -81,6 +88,7 @@ impl TestServer {
             hostname: name.into(),
             os: "linux".into(),
             agent_version: "test".into(),
+            previous,
         };
         let res: PairResponse = self
             .http

@@ -162,6 +162,7 @@
   "pair_step3": "Shows the optional Steam launch option",
   "pair_text": "Run in a terminal on the new PC. No root needed; works on Bazzite and the Steam Deck. The code is valid for 15 minutes.",
   "pair_title": "Pair a new device",
+  "pair_update": "Already paired? To update the agent, run the command without a code; the PC stays the same device:",
   "pair_waiting": "Waiting for the new device …",
   "pin": "Keep",
   "prefix_placeholder": "~/Games/Game/prefix",

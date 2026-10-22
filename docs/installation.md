@@ -103,6 +103,12 @@ and uploads them.
 ## Updating
 
 The server: pull the new image (`docker compose pull && docker compose up -d`; the Quadlet updates
-itself with `podman auto-update`). The agent: run the install command again with a new pairing code,
-or copy the new binary from `http://homeserver:8467/download/agent/x86_64` to
-`~/.local/bin/spielstand-agent`.
+itself with `podman auto-update`). The agent: run the install command again, without a pairing code:
+
+```sh
+curl -fsSL http://homeserver:8467/install.sh | sh
+```
+
+It replaces the binary and restarts the service; the PC stays the same device with its name and
+settings. Running it with a new pairing code does no harm either: a PC that is still paired keeps
+its device and only gets a new token.

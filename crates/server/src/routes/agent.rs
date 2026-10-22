@@ -145,29 +145,65 @@ async fn pair(State(state): State<AppState>, Json(req): Json<PairRequest>) -> Ap
         return Err(AppError::Unauthorized);
     }
     attempt.succeeded();
-    let device_id = uuid::Uuid::new_v4().to_string();
     let token = auth::random_token();
     let name = if req.name.trim().is_empty() {
         req.hostname.clone()
     } else {
         req.name.trim().to_string()
     };
+    let device_id = match rekey_previous(&state, &req, &name, &token).await? {
+        Some(id) => id,
+        None => add_device(&state, &req, &name, &token).await?,
+    };
+    db::event(&state.db, Some(&device_id), None, EventKind::Paired).await?;
+    Ok(Json(PairResponse { device_id, token }))
+}
+
+/// A PC that pairs again while its pairing is still valid keeps its device (bases, prefix
+/// choices, history) and gets a new token, instead of showing up twice.
+async fn rekey_previous(
+    state: &AppState,
+    req: &PairRequest,
+    name: &str,
+    token: &str,
+) -> anyhow::Result<Option<String>> {
+    let Some(previous) = &req.previous else {
+        return Ok(None);
+    };
+    let done = sqlx::query(
+        "UPDATE devices SET name = ?, hostname = ?, os = ?, agent_version = ?, token_hash = ?, last_seen = ?
+         WHERE id = ? AND token_hash = ? AND removed_at IS NULL",
+    )
+    .bind(name)
+    .bind(&req.hostname)
+    .bind(&req.os)
+    .bind(&req.agent_version)
+    .bind(auth::token_hash(token))
+    .bind(db::now())
+    .bind(&previous.device_id)
+    .bind(auth::token_hash(&previous.token))
+    .execute(&state.db)
+    .await?;
+    Ok((done.rows_affected() == 1).then(|| previous.device_id.clone()))
+}
+
+async fn add_device(state: &AppState, req: &PairRequest, name: &str, token: &str) -> anyhow::Result<String> {
+    let device_id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO devices (id, name, hostname, os, agent_version, token_hash, created_at, last_seen)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&device_id)
-    .bind(&name)
+    .bind(name)
     .bind(&req.hostname)
     .bind(&req.os)
     .bind(&req.agent_version)
-    .bind(auth::token_hash(&token))
+    .bind(auth::token_hash(token))
     .bind(db::now())
     .bind(db::now())
     .execute(&state.db)
     .await?;
-    db::event(&state.db, Some(&device_id), None, EventKind::Paired).await?;
-    Ok(Json(PairResponse { device_id, token }))
+    Ok(device_id)
 }
 
 async fn heads(State(state): State<AppState>, agent: Agent) -> ApiResult<Json<HeadsResponse>> {

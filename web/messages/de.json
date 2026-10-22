@@ -162,6 +162,7 @@
   "pair_step3": "Zeigt die optionale Steam-Startoption an",
   "pair_text": "Im Terminal des neuen PCs ausführen. Ohne root, läuft auch auf Bazzite und dem Steam Deck. Der Code gilt 15 Minuten.",
   "pair_title": "Neues Gerät koppeln",
+  "pair_update": "Schon gekoppelt? Zum Aktualisieren des Agents reicht der Befehl ohne Code, der PC bleibt dasselbe Gerät:",
   "pair_waiting": "Warte auf das neue Gerät …",
   "pin": "Behalten",
   "prefix_placeholder": "~/Games/Spiel/prefix",

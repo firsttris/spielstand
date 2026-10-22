@@ -166,6 +166,7 @@ pub async fn pc_with_scanner(
         hostname: name.into(),
         os: "test".into(),
         agent_version: "test".into(),
+        previous: None,
     };
     let paired = Client::pair(&server.url, &req).await.unwrap();
     let root = server.dir.path().join(name);
