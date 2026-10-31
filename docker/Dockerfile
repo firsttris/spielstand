@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # The web UI, built once on the build machine's platform.
-FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:26-bookworm-slim AS web
 WORKDIR /src/web
 RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
