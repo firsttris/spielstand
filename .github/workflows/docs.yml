@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       # Pinned; Renovate moves it (.github/renovate.json5)
       - run: pip install mkdocs-material==9.8.0
       - run: mkdocs build --strict
