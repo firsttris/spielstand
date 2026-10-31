@@ -14,7 +14,7 @@ hex.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 tar = "0.4"
-zstd = "0.13"
+zstd = "0.14"
 
 [dev-dependencies]
 tempfile.workspace = true
