@@ -9,7 +9,7 @@ export type AgentSettings = { defaultMode: SaveMode,
 /**
  * Games whose mode differs from the default.
  */
-gameModes: { [key in string]?: SaveMode }, 
+gameModes: { [key in string]: SaveMode }, 
 /**
  * Folders on this device whose sub-folders hold games with their own Wine prefix.
  */
@@ -17,7 +17,7 @@ gameFolders: Array<string>,
 /**
  * Game → the prefix chosen in the web UI when several were found on this device.
  */
-prefixChoices: { [key in string]?: string }, 
+prefixChoices: { [key in string]: string }, 
 /**
  * Games added to the manifest by hand: the ones for every device and the ones this
  * device proposed.
