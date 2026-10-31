@@ -1,6 +1,6 @@
 # Development
 
-Requires Rust (stable), Node.js 24 and pnpm 10.
+Requires Rust (stable), Node.js 26 and pnpm 10.
 
 ```bash
 git clone https://github.com/firsttris/spielstand && cd spielstand
