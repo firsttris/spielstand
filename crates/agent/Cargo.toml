@@ -35,7 +35,7 @@ tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures = "0.3"
 rayon = "1"
-sysinfo = "0.39"
+sysinfo = "0.40"
 notify = "8"
 notify-rust = { version = "4", default-features = false, features = ["z"] }
 toml = "0.9"
