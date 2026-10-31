@@ -95,8 +95,8 @@ fn same_host(a: &str, b: &str) -> bool {
 
 async fn pair(dirs: &Dirs, server: String, code: String, name: Option<String>) -> anyhow::Result<()> {
     let server = server.trim_end_matches('/').to_string();
-    let hostname = sysinfo::System::host_name().unwrap_or_else(|| "pc".into());
-    let os = sysinfo::System::long_os_version().unwrap_or_else(|| "Linux".into());
+    let hostname = sysinfo::System::host_name().unwrap_or_else(|_| "pc".into());
+    let os = sysinfo::System::long_os_version().unwrap_or_else(|_| "Linux".into());
     // Pairing again with the same server keeps the device; another server starts afresh.
     let current = AgentConfig::load(dirs)
         .ok()
