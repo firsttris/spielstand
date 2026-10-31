@@ -63,7 +63,7 @@ jobs:
           name: demo
           path: demo
       - run: chmod +x demo/demo
-      - run: npm install --global pnpm@10.28.0 && pnpm install --frozen-lockfile && pnpm screenshots
+      - run: npm install --global "$(node -p 'require("./package.json").packageManager')" && pnpm install --frozen-lockfile && pnpm screenshots
         working-directory: web
         env:
           SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/demo/demo
