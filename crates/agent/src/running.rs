@@ -70,7 +70,8 @@ pub struct Watcher {
 impl Default for Watcher {
     fn default() -> Self {
         Self {
-            system: System::new_with_specifics(RefreshKind::nothing()),
+            // sysinfo 0.40 returns a Result; on Linux it is always Ok
+            system: System::new_with_specifics(RefreshKind::nothing()).expect("sysinfo reads the processes"),
         }
     }
 }
