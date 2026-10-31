@@ -1,18 +1,16 @@
 // Renovate (GitHub App, https://github.com/apps/renovate): a pull request for each new release of
-// what Spielstand builds on, plus the "Dependency Dashboard" issue listing what is open.
-// Only those: Ludusavi (scanner, manifest and backup layout, pinned exactly in both crates that use
-// it), Node (image, CI, types and docs) and MkDocs Material of the docs workflow. The other crates,
-// the npm packages and the actions are not tracked here; Rust floats (rust-toolchain.toml
-// "stable", rust:1-bookworm), and the image stays on Debian bookworm on purpose: the agent is
-// linked against its glibc 2.36. Check with
-// `npx --package renovate renovate-config-validator .github/renovate.json5`.
+// what Spielstand builds on, plus the "Dependency Dashboard" issue listing what is open. Their own
+// pull requests: Ludusavi (scanner, manifest and backup layout, pinned exactly in both crates that
+// use it), Node (image, CI, types and docs) and MkDocs Material of the docs workflow. Rust floats
+// (rust-toolchain.toml "stable", rust:1-bookworm), and the image stays on Debian bookworm on
+// purpose: the agent is linked against its glibc 2.36.
+// Everything else (the other packages, the actions, the images) comes with the shared settings of
+// firsttris/workflows (renovate/default.json5): minor and patch updates once a month in one pull
+// request that merges itself when CI is green, majors on request in the dashboard.
+// Check with `npx --package renovate renovate-config-validator .github/renovate.json5`.
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: ["config:recommended"],
-  enabledManagers: ["dockerfile", "cargo", "npm", "custom.regex"],
-  timezone: "Europe/Berlin",
-  labels: ["dependencies"],
-  automerge: false,
+  extends: ["github>firsttris/workflows//renovate/default.json5"],
   customManagers: [
     {
       // The Ludusavi version CLAUDE.md and docs/development.md name (the reference clone and the
@@ -55,11 +53,6 @@
   ],
   packageRules: [
     {
-      // From the package managers only Ludusavi and @types/node (below)
-      matchManagers: ["cargo", "npm"],
-      enabled: false,
-    },
-    {
       // Rust floats; bookworm stays for the agent's glibc (docker/Dockerfile). Spielstand's own
       // image moves with its releases.
       matchPackageNames: ["rust", "debian", "docker.io/tristanteu/**", "tristanteu/**"],
@@ -75,6 +68,9 @@
       prBodyNotes: [
         "Ludusavi is used only through `crates/agent/src/engine.rs` (the `Scanner` trait: scan, manifest, `add_custom_game`) and `crates/server/src/importer.rs` (its backup layout for `import-ludusavi`); a bump starts there and in their tests. Before merging: read the CHANGELOG and compare `src/scan.rs`, `src/scan/layout.rs`, `src/resource/manifest.rs` and `src/prelude.rs` between the two tags (CLAUDE.md, Reference implementations); the path placeholders in `crates/core/src/custom.rs` follow `manifest.rs`. `cargo test --workspace` must be green, then run **Actions → Long simulation → Run workflow** on this branch, and `pnpm e2e:stack` (real server and agents).",
       ],
+      schedule: ["at any time"],
+      automerge: false,
+      dependencyDashboardApproval: false,
     },
     {
       // Node of the image's web stage, CI, the docs and its types, in one PR so they stay on one major
@@ -85,6 +81,9 @@
       prBodyNotes: [
         "The image's `web` stage (`node:<major>-bookworm-slim`), `node-version` in ci.yml and screenshots.yml, `@types/node` of the web UI and the requirement in docs/development.md move together.",
       ],
+      schedule: ["at any time"],
+      automerge: false,
+      dependencyDashboardApproval: false,
     },
     {
       // The types follow the image's major; their own patches are not worth a PR
@@ -96,6 +95,10 @@
       matchPackageNames: ["mkdocs-material"],
       sourceUrl: "https://github.com/squidfunk/mkdocs-material",
       prBodyNotes: ["The docs job of this PR runs `mkdocs build --strict` with it."],
+      groupName: "mkdocs-material",
+      schedule: ["at any time"],
+      automerge: false,
+      dependencyDashboardApproval: false,
     },
   ],
 }
