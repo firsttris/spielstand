@@ -30,7 +30,7 @@ libc = "0.2"
 ludusavi = { version = "=0.31.0", default-features = false }
 # The system's certificates as well (like the live connection), so a server behind a proxy with
 # a local CA (Caddy's `tls internal`) works once that CA is trusted on the PC.
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-tls", "rustls-tls-native-roots", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures = "0.3"

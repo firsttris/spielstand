@@ -1,15 +1,12 @@
 //! Two kinds of callers: the admin in the browser (session cookie) and agents (device token).
 
-use argon2::{
-    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
-    password_hash::{SaltString, rand_core::OsRng},
-};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::{
     extract::FromRequestParts,
     http::{Method, header, request::Parts},
 };
 use axum_extra::extract::CookieJar;
-use rand::RngCore;
+use rand::Rng;
 use sha2::{Digest, Sha256};
 
 use crate::{app::AppState, db, error::AppError};
@@ -20,9 +17,9 @@ pub const CSRF_HEADER: &str = "x-spielstand-csrf";
 pub const SESSION_DAYS: i64 = 30;
 
 pub fn hash_password(password: &str) -> anyhow::Result<String> {
-    let salt = SaltString::generate(&mut OsRng);
+    // A random salt from the operating system
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|h| h.to_string())
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
@@ -39,7 +36,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 
 pub fn random_token() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     hex::encode(bytes)
 }
 

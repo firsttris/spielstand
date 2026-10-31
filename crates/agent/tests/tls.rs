@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use rcgen::{BasicConstraints, CertificateParams, IsCa, KeyPair};
+use rcgen::{BasicConstraints, CertificateParams, IsCa, Issuer, KeyPair};
 use spielstand_agent::client::Client;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_rustls::{
@@ -21,14 +21,15 @@ fn local_ca() -> (String, CertificateDer<'static>, PrivateKeyDer<'static>) {
     let ca_key = KeyPair::generate().unwrap();
     let mut ca = CertificateParams::new(Vec::<String>::new()).unwrap();
     ca.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
-    let ca = ca.self_signed(&ca_key).unwrap();
+    let ca_cert = ca.self_signed(&ca_key).unwrap();
+    let issuer = Issuer::new(ca, &ca_key);
     let key = KeyPair::generate().unwrap();
     let cert = CertificateParams::new(vec!["localhost".into()])
         .unwrap()
-        .signed_by(&key, &ca, &ca_key)
+        .signed_by(&key, &issuer)
         .unwrap();
     let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key.serialize_der()));
-    (ca.pem(), cert.der().clone(), key)
+    (ca_cert.pem(), cert.der().clone(), key)
 }
 
 /// Answers every HTTPS request with `body`; returns its port.

@@ -43,9 +43,9 @@ ludusavi = { version = "=0.31.0", default-features = false }
 zip = { version = "0.6", default-features = false, features = ["deflate", "bzip2", "zstd"] }
 async-trait = "0.1"
 time = "0.3"
-reqwest = { version = "0.13", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"] }
 
 [dev-dependencies]
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 tokio-tungstenite = "0.30"
 serde_yaml = "0.9"

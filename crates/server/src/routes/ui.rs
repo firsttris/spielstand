@@ -12,7 +12,7 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
 };
 use chrono::{Duration, Utc};
-use rand::Rng;
+use rand::RngExt;
 use spielstand_protocol::EventKind;
 use spielstand_protocol::{
     Activity, Device, GameDetail, GameSummary, ImportReport, ImportRequest, Overview, PairCode,
@@ -328,8 +328,8 @@ pub fn server_url(state: &AppState, headers: &HeaderMap) -> String {
 
 fn new_code() -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let mut rng = rand::thread_rng();
-    let mut pick = || ALPHABET[rng.gen_range(0..ALPHABET.len())] as char;
+    let mut rng = rand::rng();
+    let mut pick = || ALPHABET[rng.random_range(0..ALPHABET.len())] as char;
     format!("{}{}{}-{}{}{}", pick(), pick(), pick(), pick(), pick(), pick())
 }
 
