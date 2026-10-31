@@ -3,8 +3,9 @@
 # The web UI, built once on the build machine's platform.
 FROM --platform=$BUILDPLATFORM node:26-bookworm-slim AS web
 WORKDIR /src/web
-RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
+# Node 25 and later no longer ship corepack: install the pnpm of "packageManager" with npm
+RUN npm install -g "$(node -p 'require("./package.json").packageManager')"
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm build
