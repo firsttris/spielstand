@@ -23,12 +23,12 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p spielstand-agent
       - run: cp target/release/spielstand-agent "spielstand-agent-${{ matrix.arch }}-linux"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: agent-${{ matrix.arch }}
           path: spielstand-agent-${{ matrix.arch }}-linux
@@ -37,12 +37,12 @@ jobs:
     needs: agent
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: agent-*
           merge-multiple: true
           path: agents
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: agents
           path: agents/*
