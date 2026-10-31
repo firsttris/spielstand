@@ -126,7 +126,7 @@ jobs:
           path: bins
       # Artifacts lose the executable bit
       - run: chmod +x ../bins/examples/demo ../bins/examples/stack ../bins/spielstand-agent
-      - run: npm install --global pnpm@10.28.0 && pnpm install --frozen-lockfile
+      - run: npm install --global "$(node -p 'require("./package.json").packageManager')" && pnpm install --frozen-lockfile
       - run: pnpm e2e
         env:
           SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/bins/examples/demo

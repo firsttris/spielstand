@@ -199,7 +199,7 @@ The full documentation, with search, is at **[firsttris.github.io/spielstand](ht
 
 ## 🛠️ Development
 
-Requires Rust (stable), Node.js 24 and pnpm 10.
+Requires Rust (stable), Node.js 24 and pnpm 12.
 
 ```bash
 git clone https://github.com/firsttris/spielstand && cd spielstand

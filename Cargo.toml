@@ -27,7 +27,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "chrono"] }
 clap = { version = "4", features = ["derive", "env"] }
 tempfile = "3"
-ts-rs = { version = "11", features = ["serde-json-impl", "chrono-impl", "no-serde-warnings"] }
+ts-rs = { version = "12", features = ["serde-json-impl", "chrono-impl", "no-serde-warnings"] }
 
 [profile.release]
 lto = "thin"
