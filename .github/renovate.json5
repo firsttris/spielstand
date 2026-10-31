@@ -86,12 +86,6 @@
       dependencyDashboardApproval: false,
     },
     {
-      // The types follow the image's major; their own patches are not worth a PR
-      matchPackageNames: ["@types/node"],
-      matchUpdateTypes: ["minor", "patch"],
-      enabled: false,
-    },
-    {
       matchPackageNames: ["mkdocs-material"],
       sourceUrl: "https://github.com/squidfunk/mkdocs-material",
       prBodyNotes: ["The docs job of this PR runs `mkdocs build --strict` with it."],
@@ -99,6 +93,16 @@
       schedule: ["at any time"],
       automerge: false,
       dependencyDashboardApproval: false,
+    },
+    {
+      // The types' own minor and patch releases go with the monthly update of the other packages;
+      // a new major comes with Node above
+      matchPackageNames: ["@types/node"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "dependencies (minor and patch)",
+      groupSlug: "minor-patch",
+      schedule: ["* 0-5 1 * *"],
+      automerge: true,
     },
   ],
 }
