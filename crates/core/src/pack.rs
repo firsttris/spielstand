@@ -47,7 +47,15 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 pub fn sha256_file(path: &Path) -> io::Result<String> {
     let mut hasher = Sha256::new();
     let mut file = File::open(path)?;
-    io::copy(&mut file, &mut hasher)?;
+    // sha2 0.11 no longer implements io::Write
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
     Ok(hex::encode(hasher.finalize()))
 }
 

@@ -30,15 +30,15 @@ libc = "0.2"
 ludusavi = { version = "=0.31.0", default-features = false }
 # The system's certificates as well (like the live connection), so a server behind a proxy with
 # a local CA (Caddy's `tls internal`) works once that CA is trusted on the PC.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "rustls-tls-native-roots", "stream"] }
-tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures = "0.3"
 rayon = "1"
-sysinfo = "0.36"
+sysinfo = "0.39"
 notify = "8"
 notify-rust = { version = "4", default-features = false, features = ["z"] }
-toml = "0.8"
+toml = "0.9"
 dirs = "5"
 async-trait = "0.1"
 bytes = "1"
@@ -46,7 +46,7 @@ bytes = "1"
 [dev-dependencies]
 spielstand-server = { path = "../server" }
 axum = "0.8"
-serde_yaml = "0.8"
+serde_yaml = "0.9"
 proptest = "1"
-rcgen = "0.13"
+rcgen = "0.14"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
