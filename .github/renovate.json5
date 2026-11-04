@@ -26,16 +26,6 @@
       datasourceTemplate: "crate",
     },
     {
-      // The Bun of web/package.json (`packageManager`; CI takes its version from there, setup-bun
-      // with bun-version-file and npm in the Playwright image), as in firsttris/windfenster; the
-      // image's oven/bun comes with the dockerfile manager
-      customType: "regex",
-      managerFilePatterns: ["/^web/package\\.json$/"],
-      matchStrings: ['"packageManager": "bun@(?<currentValue>\\d+\\.\\d+\\.\\d+)"'],
-      depNameTemplate: "bun",
-      datasourceTemplate: "npm",
-    },
-    {
       customType: "regex",
       managerFilePatterns: ["/^\\.github/workflows/docs\\.yml$/"],
       matchStrings: ["pip install mkdocs-material==(?<currentValue>[^\\s]+)"],
@@ -65,7 +55,9 @@
       dependencyDashboardApproval: false,
     },
     {
-      // Bun of the image's web stage and of web/package.json, in one PR, majors too
+      // Bun of the image's web stage (oven/bun, dockerfile manager) and of web/package.json, in
+      // one PR, majors too. Renovate's bun manager reads "packageManager": "bun@x.y.z" itself, as
+      // the npm package `bun`; a regex manager for it would edit the line a second time.
       matchPackageNames: ["docker.io/oven/bun", "oven/bun", "bun"],
       enabled: true,
       groupName: "Bun",
