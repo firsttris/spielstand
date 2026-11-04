@@ -1,0 +1,8 @@
+[install]
+# As before with pnpm: the web UI sees only its own dependencies (node_modules/.bun), not what
+# they bring along; project.inlang loads its plugin from node_modules/@inlang/plugin-message-format,
+# a direct dependency
+linker = "isolated"
+# No package younger than one day, as pnpm 12 did by default; Renovate waits three days
+# (firsttris/workflows renovate/default.json5)
+minimumReleaseAge = 86400

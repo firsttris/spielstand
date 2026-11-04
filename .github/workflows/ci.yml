@@ -32,20 +32,15 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: oven-sh/setup-bun@v2
         with:
-          package_json_file: web/package.json
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+          bun-version-file: web/package.json
+      - run: bun install --frozen-lockfile
       # Generates the router tree and the Paraglide messages the type check reads
-      - run: pnpm build
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+      - run: bun run build
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test
       - uses: actions/upload-artifact@v7
         with:
           name: web-dist
@@ -106,7 +101,7 @@ jobs:
       - id: playwright
         uses: firsttris/workflows/actions/playwright-image@v1
         with:
-          lockfile: web/pnpm-lock.yaml
+          lockfile: web/bun.lock
 
   e2e:
     needs: [rust, playwright-image]
@@ -126,12 +121,15 @@ jobs:
           path: bins
       # Artifacts lose the executable bit
       - run: chmod +x ../bins/examples/demo ../bins/examples/stack ../bins/spielstand-agent
-      - run: npm install --global "$(node -p 'require("./package.json").packageManager')" && pnpm install --frozen-lockfile
-      - run: pnpm e2e
+      # The npm package brings the binary without curl or unzip, which the image lacks; the
+      # version is `packageManager` in package.json, as setup-bun takes it elsewhere
+      - run: npm install --global "bun@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+      - run: bun install --frozen-lockfile
+      - run: bun run e2e
         env:
           SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/bins/examples/demo
       # The whole chain: browser, server and two agent processes writing real save files
-      - run: pnpm e2e:stack
+      - run: bun run e2e:stack
         env:
           SPIELSTAND_STACK_BIN: ${{ github.workspace }}/bins/examples/stack
           SPIELSTAND_AGENT_BIN: ${{ github.workspace }}/bins/spielstand-agent
