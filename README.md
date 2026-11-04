@@ -199,11 +199,11 @@ The full documentation, with search, is at **[firsttris.github.io/spielstand](ht
 
 ## 🛠️ Development
 
-Requires Rust (stable), Node.js 24 and pnpm 12.
+Requires Rust (stable) and [Bun](https://bun.com) 1.4 (the version in `packageManager` of web/package.json).
 
 ```bash
 git clone https://github.com/firsttris/spielstand && cd spielstand
-cd web && pnpm install && pnpm build && cd ..
+cd web && bun install && bun run build && cd ..
 cargo run -p spielstand-server --example demo   # demo data on :8467, password spielstand-demo
 ```
 

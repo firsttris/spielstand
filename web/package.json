@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.3.2",
   "type": "module",
-  "packageManager": "pnpm@12.16.1",
+  "packageManager": "bun@1.4.4",
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
@@ -13,9 +13,9 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
-    "e2e": "playwright test --project=e2e",
-    "e2e:stack": "playwright test --config playwright.stack.config.ts",
-    "screenshots": "playwright test --project=screenshots"
+    "e2e": "bun --bun playwright test --project=e2e",
+    "e2e:stack": "bun --bun playwright test --config playwright.stack.config.ts",
+    "screenshots": "bun --bun playwright test --project=screenshots"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

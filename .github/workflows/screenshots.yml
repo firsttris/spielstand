@@ -14,15 +14,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: oven-sh/setup-bun@v2
         with:
-          package_json_file: web/package.json
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile && pnpm build
+          bun-version-file: web/package.json
+      - run: bun install --frozen-lockfile && bun run build
         working-directory: web
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -42,7 +37,7 @@ jobs:
       - id: playwright
         uses: firsttris/workflows/actions/playwright-image@v1
         with:
-          lockfile: web/pnpm-lock.yaml
+          lockfile: web/bun.lock
 
   screenshots:
     needs: [demo, image]
@@ -63,7 +58,11 @@ jobs:
           name: demo
           path: demo
       - run: chmod +x demo/demo
-      - run: npm install --global "$(node -p 'require("./package.json").packageManager')" && pnpm install --frozen-lockfile && pnpm screenshots
+      # The npm package brings the binary without curl or unzip, which the image lacks; the
+      # version is `packageManager` in package.json, as setup-bun takes it elsewhere
+      - run: npm install --global "bun@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+        working-directory: web
+      - run: bun install --frozen-lockfile && bun run screenshots
         working-directory: web
         env:
           SPIELSTAND_DEMO_BIN: ${{ github.workspace }}/demo/demo

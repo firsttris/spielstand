@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 // The whole chain: a real server and two real agents (Desktop, Steam Deck), started by the
 // `stack` example (crates/server/examples/stack). Tests write and read the PCs' save files
 // directly and act in the browser. Build first: `cargo build -p spielstand-agent` and
-// `pnpm build`.
+// `bun run build`.
 const port = Number(process.env.SPIELSTAND_STACK_PORT ?? 8469);
 const control = Number(process.env.SPIELSTAND_STACK_CONTROL_PORT ?? 8470);
 const stack = process.env.SPIELSTAND_STACK_BIN ?? "cargo run -q -p spielstand-server --example stack";

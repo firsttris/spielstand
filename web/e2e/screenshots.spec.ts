@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { login } from "./helpers";
 
-// Pictures for the README and the docs. Started by hand (pnpm screenshots) or by the
+// Pictures for the README and the docs. Started by hand (bun run screenshots) or by the
 // Screenshots workflow; the files are committed.
 const dir = "../docs/screenshots";
 

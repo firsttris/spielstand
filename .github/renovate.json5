@@ -1,13 +1,13 @@
 // Renovate (GitHub App, https://github.com/apps/renovate): a pull request for each new release of
 // what Spielstand builds on, plus the "Dependency Dashboard" issue listing what is open. Their own
 // pull requests: Ludusavi (scanner, manifest and backup layout, pinned exactly in both crates that
-// use it), Node (image, CI, types and docs) and MkDocs Material of the docs workflow. Rust floats
+// use it), Bun (image and web/package.json) and MkDocs Material of the docs workflow. Rust floats
 // (rust-toolchain.toml "stable", rust:1-bookworm), and the image stays on Debian bookworm on
 // purpose: the agent is linked against its glibc 2.36.
 // Everything else (the other packages, the actions, the images) comes with the shared settings of
 // firsttris/workflows (renovate/default.json5): minor and patch updates once a month in one pull
 // request that merges itself when CI is green, majors on request in the dashboard.
-// Check with `npx --package renovate renovate-config-validator .github/renovate.json5`.
+// Check with `bunx --package renovate renovate-config-validator .github/renovate.json5`.
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["github>firsttris/workflows//renovate/default.json5"],
@@ -26,22 +26,14 @@
       datasourceTemplate: "crate",
     },
     {
-      // The Node of CI and the screenshots
+      // The Bun of web/package.json (`packageManager`; CI takes its version from there, setup-bun
+      // with bun-version-file and npm in the Playwright image), as in firsttris/windfenster; the
+      // image's oven/bun comes with the dockerfile manager
       customType: "regex",
-      managerFilePatterns: ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
-      matchStrings: ["node-version: (?<currentValue>\\d+)\\n"],
-      depNameTemplate: "node",
-      datasourceTemplate: "node-version",
-      versioningTemplate: "node",
-    },
-    {
-      // "Requires Rust (stable), Node.js 24 and pnpm 10." in docs/development.md
-      customType: "regex",
-      managerFilePatterns: ["/^docs/development\\.md$/"],
-      matchStrings: ["Node\\.js (?<currentValue>\\d+) and pnpm"],
-      depNameTemplate: "node",
-      datasourceTemplate: "node-version",
-      versioningTemplate: "node",
+      managerFilePatterns: ["/^web/package\\.json$/"],
+      matchStrings: ['"packageManager": "bun@(?<currentValue>\\d+\\.\\d+\\.\\d+)"'],
+      depNameTemplate: "bun",
+      datasourceTemplate: "npm",
     },
     {
       customType: "regex",
@@ -66,20 +58,20 @@
       sourceUrl: "https://github.com/mtkennerly/ludusavi",
       commitMessageTopic: "Ludusavi",
       prBodyNotes: [
-        "Ludusavi is used only through `crates/agent/src/engine.rs` (the `Scanner` trait: scan, manifest, `add_custom_game`) and `crates/server/src/importer.rs` (its backup layout for `import-ludusavi`); a bump starts there and in their tests. Before merging: read the CHANGELOG and compare `src/scan.rs`, `src/scan/layout.rs`, `src/resource/manifest.rs` and `src/prelude.rs` between the two tags (CLAUDE.md, Reference implementations); the path placeholders in `crates/core/src/custom.rs` follow `manifest.rs`. `cargo test --workspace` must be green, then run **Actions → Long simulation → Run workflow** on this branch, and `pnpm e2e:stack` (real server and agents).",
+        "Ludusavi is used only through `crates/agent/src/engine.rs` (the `Scanner` trait: scan, manifest, `add_custom_game`) and `crates/server/src/importer.rs` (its backup layout for `import-ludusavi`); a bump starts there and in their tests. Before merging: read the CHANGELOG and compare `src/scan.rs`, `src/scan/layout.rs`, `src/resource/manifest.rs` and `src/prelude.rs` between the two tags (CLAUDE.md, Reference implementations); the path placeholders in `crates/core/src/custom.rs` follow `manifest.rs`. `cargo test --workspace` must be green, then run **Actions → Long simulation → Run workflow** on this branch, and `bun run e2e:stack` (real server and agents).",
       ],
       schedule: ["at any time"],
       automerge: false,
       dependencyDashboardApproval: false,
     },
     {
-      // Node of the image's web stage, CI, the docs and its types, in one PR so they stay on one major
-      matchPackageNames: ["node", "@types/node"],
+      // Bun of the image's web stage and of web/package.json, in one PR, majors too
+      matchPackageNames: ["docker.io/oven/bun", "oven/bun", "bun"],
       enabled: true,
-      groupName: "Node",
-      sourceUrl: "https://github.com/nodejs/node",
+      groupName: "Bun",
+      sourceUrl: "https://github.com/oven-sh/bun",
       prBodyNotes: [
-        "The image's `web` stage (`node:<major>-bookworm-slim`), `node-version` in ci.yml and screenshots.yml, `@types/node` of the web UI and the requirement in docs/development.md move together.",
+        "The image's `web` stage (`oven/bun:<version>-slim`) and `packageManager` in `web/package.json` (CI takes its version from there: setup-bun, and npm in the Playwright image) move together. Bun installs the packages and runs the scripts and the Playwright runner (`bun --bun playwright test`). Run `bun install` in case `web/bun.lock` changes. CI's docker job builds and starts the image.",
       ],
       schedule: ["at any time"],
       automerge: false,
@@ -93,16 +85,6 @@
       schedule: ["at any time"],
       automerge: false,
       dependencyDashboardApproval: false,
-    },
-    {
-      // The types' own minor and patch releases go with the monthly update of the other packages;
-      // a new major comes with Node above
-      matchPackageNames: ["@types/node"],
-      matchUpdateTypes: ["minor", "patch"],
-      groupName: "dependencies (minor and patch)",
-      groupSlug: "minor-patch",
-      schedule: ["* 0-5 1 * *"],
-      automerge: true,
     },
   ],
 }

@@ -1,12 +1,12 @@
 # Development
 
-Requires Rust (stable), Node.js 26 and pnpm 12.
+Requires Rust (stable) and [Bun](https://bun.com) 1.4 (the version in `packageManager` of web/package.json).
 
 ```bash
 git clone https://github.com/firsttris/spielstand && cd spielstand
-cd web && pnpm install && pnpm build && cd ..
+cd web && bun install && bun run build && cd ..
 cargo run -p spielstand-server --example demo   # server with demo data on :8467, password spielstand-demo
-cd web && pnpm dev                              # UI with hot reload on :5173, proxied to :8467
+cd web && bun run dev                           # UI with hot reload on :5173, proxied to :8467
 ```
 
 ## Architecture
@@ -66,9 +66,9 @@ cargo test -p spielstand-protocol --features ts
 | `cargo test -p spielstand-server` | API against a real server: CAS, parallel uploads, auth, mirror, import |
 | `cargo test -p spielstand-agent` | sync scenarios with two PCs, the real Ludusavi scanner, the command line as a binary |
 | `cargo test -p spielstand-agent --test simulation` | random histories of PCs, outages and restores; `SPIELSTAND_SIM_CASES` sets how many |
-| `cd web && pnpm test` | unit tests (Vitest) |
-| `cd web && pnpm e2e` | Playwright against the demo server |
-| `cd web && pnpm e2e:stack` | Playwright against the whole chain: a server and two real agent processes with their own homes and Wine prefixes (`cargo build -p spielstand-agent` first) |
+| `cd web && bun run test` | unit tests (Vitest) |
+| `cd web && bun run e2e` | Playwright against the demo server, its runner on Bun (`bun --bun playwright test`) |
+| `cd web && bun run e2e:stack` | Playwright against the whole chain: a server and two real agent processes with their own homes and Wine prefixes (`cargo build -p spielstand-agent` first) |
 | `install/test.sh target/debug` | the one-line install against a fresh server (as a normal user) |
 
 The simulation checks the central promise: whatever happens, every state a game's saves were ever
@@ -80,7 +80,7 @@ in on any PC is still a version. CI runs 64 histories, a nightly job 3000.
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e && pnpm e2e:stack
+cd web && bun run lint && bun run typecheck && bun run test && bun run build && bun run e2e && bun run e2e:stack
 mkdocs build --strict
 ```
 
@@ -98,7 +98,7 @@ PC off and on. Edit a save file and watch it arrive on the other PC.
 
 ## Screenshots
 
-`pnpm screenshots` (in `web/`) takes the pictures in `docs/screenshots` from the demo server. On
+`bun run screenshots` (in `web/`) takes the pictures in `docs/screenshots` from the demo server. On
 GitHub: **Actions → Update screenshots → Run workflow**.
 
 ## Releases

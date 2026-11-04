@@ -42,7 +42,7 @@ Green before every push, then check CI:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm e2e && pnpm e2e:stack
+cd web && bun run lint && bun run typecheck && bun run test && bun run build && bun run e2e && bun run e2e:stack
 mkdocs build --strict    # when docs/ or mkdocs.yml changed
 ```
 
@@ -64,8 +64,8 @@ mkdocs build --strict    # when docs/ or mkdocs.yml changed
 
 ## Code style
 
-Technology choices follow `tech-stack.md` in firsttris/workflows. Deviations: no Bun, pnpm only for
-the web UI's build and tests; ts-rs for the shared types.
+Technology choices follow `tech-stack.md` in firsttris/workflows. Deviation: ts-rs for the shared
+types.
 
 Clean Code, written functionally: clear names, small functions that do one thing, dependencies
 passed in, no duplication or dead code, comments that say why; the ideas behind SOLID and the
@@ -89,7 +89,7 @@ split it past ~400 lines, a function past ~80. A refactor changes no behaviour.
   custom games (one a device proposed);
   password `spielstand-demo`.
 - The stack (`cargo run -p spielstand-server --example stack`, after `cargo build -p
-  spielstand-agent`) runs a real server and two real agents for `pnpm e2e:stack`; ports 8469/8470,
+  spielstand-agent`) runs a real server and two real agents for `bun run e2e:stack`; ports 8469/8470,
   password `spielstand-stack`.
 - UI components are written in the shadcn/ui style in `web/src/components/ui` (Radix + cva); add new
   ones the same way.

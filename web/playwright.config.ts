@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // The end-to-end tests run against the real server, filled with demo data by the `demo` example
-// (crates/server/examples/demo.rs). It serves the built web UI, so run `pnpm build` first.
+// (crates/server/examples/demo.rs). It serves the built web UI, so run `bun run build` first.
 const port = Number(process.env.SPIELSTAND_E2E_PORT ?? 8468);
 const baseURL = `http://127.0.0.1:${port}`;
 // CI builds the demo once and hands the binary to the Playwright container.

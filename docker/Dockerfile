@@ -1,14 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # The web UI, built once on the build machine's platform.
-FROM --platform=$BUILDPLATFORM node:26-bookworm-slim AS web
+# Bun of `packageManager` in web/package.json (Renovate moves both together)
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-slim AS web
 WORKDIR /src/web
-COPY web/package.json web/pnpm-lock.yaml ./
-# Node 25 and later no longer ship corepack: install the pnpm of "packageManager" with npm
-RUN npm install -g "$(node -p 'require("./package.json").packageManager')"
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
+COPY web/package.json web/bun.lock web/bunfig.toml ./
+RUN bun install --frozen-lockfile
 COPY web/ ./
-RUN pnpm build
+RUN bun run build
 
 # Server and agent for the target platform. The agent is linked against the glibc of Debian
 # bookworm (2.36), older than that of Bazzite, SteamOS or any current desktop distribution.
