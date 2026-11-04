@@ -1,5 +1,6 @@
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
+import { redact } from "@tanstack/redact/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
@@ -16,6 +17,9 @@ export default defineConfig({
     }),
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
+    // The code keeps importing from "react"; Redact (a smaller runtime with the React 19 API)
+    // takes those imports over at build time, so the UI ships less JavaScript
+    redact(),
     tailwindcss(),
   ],
   resolve: { alias: { "@": "/src" } },

@@ -207,8 +207,8 @@ cd web && bun install && bun run build && cd ..
 cargo run -p spielstand-server --example demo   # demo data on :8467, password spielstand-demo
 ```
 
-Rust (axum, SQLite, the Ludusavi crate) for server and agent; React 19, TanStack, Tailwind 4 and
-shadcn/ui-style components for the web UI. Architecture, tests and releases: [Development](https://firsttris.github.io/spielstand/development.html).
+Rust (axum, SQLite, the Ludusavi crate) for server and agent; React 19 (built on the TanStack Redact
+runtime), TanStack, Tailwind 4 and shadcn/ui-style components for the web UI. Architecture, tests and releases: [Development](https://firsttris.github.io/spielstand/development.html).
 
 ## 🤝 Contributing
 

@@ -17,7 +17,7 @@ crates/
   core/       pure logic: the sync decision, packing, portable paths, retention
   server/     axum + SQLite: API, web UI (embedded), mirror, Ludusavi import, retention
   agent/      the PC side: Ludusavi scanner, disk writes, sync, daemon, launch wrapper
-web/          React 19, TanStack Router and Query, Tailwind 4, shadcn/ui-style components, Paraglide
+web/          React 19 API on TanStack Redact, TanStack Router and Query, Tailwind 4, shadcn/ui-style components, Paraglide
 install/      install.sh, served by the server with its own address filled in
 docker/       the image: server, agent binaries, rclone
 ```
