@@ -11,6 +11,7 @@ export default defineConfig({
     paraglideVitePlugin({
       project: "./project.inlang",
       outdir: "./src/paraglide",
+      outputStructure: "message-modules",
       strategy: ["localStorage", "preferredLanguage", "baseLocale"],
     }),
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
