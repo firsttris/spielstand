@@ -87,6 +87,7 @@ RestartSec=10
 # A background service: the PC in use comes first.
 Nice=10
 IOSchedulingClass=idle
+CPUQuota=100%
 
 [Install]
 WantedBy=default.target

@@ -198,15 +198,22 @@ async fn connect(agent: &Agent, playing: &Playing) -> anyhow::Result<()> {
     }
 }
 
+/// The share of the time a catch-up works, so that it is not felt: it rests four times as long.
+const CATCH_UP_REST: u32 = 4;
+/// A server that answers slowly must not make it rest for minutes.
+const LONGEST_REST: Duration = Duration::from_secs(2);
+
 /// Syncs every game to follow that is not running; uploads changes, fetches new heads.
 async fn catch_up(agent: &Agent, playing: &BTreeMap<String, (u32, Instant)>) {
     let games = agent.games_to_follow().await;
     for game in games.iter().filter(|g| !busy(agent, g, playing)) {
+        let started = Instant::now();
         match agent.sync_game(game, Mode::Background).await {
             Ok(Outcome::Offline) => return,
             Ok(_) => {}
             Err(e) => tracing::warn!("{game}: {e:#}"),
         }
+        tokio::time::sleep((started.elapsed() * CATCH_UP_REST).min(LONGEST_REST)).await;
     }
 }
 
@@ -228,10 +235,16 @@ fn full_scan_done(dirs: &Dirs) {
 
 /// Games with saves this agent does not know yet.
 async fn discover(agent: &Agent, playing: &BTreeMap<String, (u32, Instant)>) {
+    let started = Instant::now();
     let scanner = agent.scanner.clone();
     let Ok(found) = tokio::task::spawn_blocking(move || scanner.games_with_saves()).await else {
         return;
     };
+    tracing::info!(
+        "looked for games with saves: {} found in {} s",
+        found.len(),
+        started.elapsed().as_secs()
+    );
     let known = agent.store.tracked_games().await.unwrap_or_default();
     for game in found
         .iter()
@@ -395,7 +408,8 @@ pub async fn run_with(agent: Agent, timings: Timings) -> anyhow::Result<()> {
             let _ = a.flush().await;
             let snapshot = p.lock().await.clone();
             catch_up(&a, &snapshot).await;
-            if full_scan_due(&a.dirs, t.full_scan) {
+            let played = !snapshot.is_empty() || !running::wrapped(&a.dirs).is_empty();
+            if !played && full_scan_due(&a.dirs, t.full_scan) {
                 a.configure_scanner();
                 discover(&a, &snapshot).await;
                 full_scan_done(&a.dirs);

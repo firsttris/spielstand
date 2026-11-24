@@ -1,5 +1,4 @@
-//! Where games' saves were found lately. Ludusavi hashes every save file it finds (`src/scan.rs`,
-//! `scan_game_for_backup`), so asking it only for the places reads all saves from the disk.
+//! Where games' saves were found lately, for what runs often and needs only the places.
 
 use std::{
     collections::HashMap,

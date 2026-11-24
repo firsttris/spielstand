@@ -142,8 +142,8 @@ impl Agent {
         };
         let disk = {
             let scanner = self.scanner.clone();
-            let g = game.to_string();
-            tokio::task::spawn_blocking(move || disk::read(scanner.as_ref(), &g)).await??
+            let (g, hashes) = (game.to_string(), self.hashes.clone());
+            tokio::task::spawn_blocking(move || disk::read_changed(scanner.as_ref(), &g, &hashes)).await??
         };
         let base = self.store.base(game).await?;
         let head = heads.heads.get(game);
