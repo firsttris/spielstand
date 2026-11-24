@@ -63,6 +63,12 @@ Not Installed:
     assert_eq!(found, games);
     assert_eq!(engine.save_files("Demo Game"), vec![native.join("save1.dat")]);
     assert_eq!(engine.save_files("Wine Game"), vec![roaming.join("slot.sav")]);
+    // The places are those found lately (looking again hashes every save); the files are always
+    // looked for.
+    std::fs::write(native.join("save2.dat"), "new").unwrap();
+    assert_eq!(engine.save_places("Demo Game"), vec![native.join("save1.dat")]);
+    assert_eq!(engine.save_files("Demo Game").len(), 2);
+    assert_eq!(engine.save_places("Demo Game").len(), 2);
     assert!(engine.steam_cloud("Demo Game"));
     assert!(!engine.steam_cloud("Wine Game"));
     let anchors = engine.anchors();

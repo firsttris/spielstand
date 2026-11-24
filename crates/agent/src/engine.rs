@@ -5,6 +5,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
+    time::Instant,
 };
 
 use ludusavi::{
@@ -21,10 +22,17 @@ use rayon::prelude::*;
 use spielstand_core::portable::Anchors;
 use spielstand_protocol::CustomGame;
 
+use crate::places::Places;
+
 pub trait Scanner: Send + Sync {
     fn anchors(&self) -> Anchors;
     /// The save files of `game` that exist on disk right now.
     fn save_files(&self, game: &str) -> Vec<PathBuf>;
+    /// The save files of `game` as found lately, for what needs only the places and runs often.
+    /// Never for backing up or writing: files may have come or gone since.
+    fn save_places(&self, game: &str) -> Vec<PathBuf> {
+        self.save_files(game)
+    }
     /// Every game that has saves on this disk.
     fn games_with_saves(&self) -> Vec<String>;
     /// Steam Cloud syncs this game's saves on its own.
@@ -121,6 +129,7 @@ pub struct Ludusavi {
     app_dir: StrictPath,
     steam_shortcuts: SteamShortcuts,
     launchers: Mutex<Option<Launchers>>,
+    places: Places,
     steam_ids: HashMap<u32, String>,
     wine_prefixes: RwLock<Vec<PathBuf>>,
     game_folders: RwLock<Vec<PathBuf>>,
@@ -192,6 +201,7 @@ impl Ludusavi {
             app_dir,
             steam_shortcuts,
             launchers: Mutex::new(None),
+            places: Places::default(),
             steam_ids,
             wine_prefixes: RwLock::default(),
             game_folders: RwLock::default(),
@@ -238,9 +248,10 @@ impl Ludusavi {
             .clone()
     }
 
-    /// Forget the launcher scan, e.g. after games were installed.
+    /// Forget the launcher scan, e.g. after games were installed, and the places found with it.
     pub fn refresh(&self) {
         *self.launchers.lock().unwrap() = None;
+        self.places.forget();
     }
 
     fn scan(&self, game: &str, launchers: &Launchers) -> Vec<PathBuf> {
@@ -272,6 +283,7 @@ impl Ludusavi {
             .filter_map(|(path, _)| path.as_std_path_buf().ok())
             .collect();
         files.sort();
+        self.places.remember(game, &files, Instant::now());
         files
     }
 }
@@ -299,6 +311,12 @@ impl Scanner for Ludusavi {
 
     fn save_files(&self, game: &str) -> Vec<PathBuf> {
         self.scan(game, &self.launchers())
+    }
+
+    fn save_places(&self, game: &str) -> Vec<PathBuf> {
+        self.places
+            .recall(game, Instant::now())
+            .unwrap_or_else(|| self.save_files(game))
     }
 
     fn games_with_saves(&self) -> Vec<String> {
@@ -414,6 +432,8 @@ pub struct FakeScanner {
     pub scan_time: std::time::Duration,
     /// How often the disk was looked through as a whole.
     pub full_scans: Arc<std::sync::atomic::AtomicUsize>,
+    /// How often one game's saves were looked for on the disk, not among the places known.
+    pub looked: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl FakeScanner {
@@ -461,6 +481,10 @@ impl Scanner for FakeScanner {
         anchors
     }
     fn save_files(&self, game: &str) -> Vec<PathBuf> {
+        self.looked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.save_places(game)
+    }
+    fn save_places(&self, game: &str) -> Vec<PathBuf> {
         let mut out = vec![];
         for dir in self.games.get(game).into_iter().flatten() {
             walk(dir, &mut out);

@@ -73,7 +73,7 @@ impl Agent {
             .map(|g| g.prefix)
             .collect();
         let folders = settings::game_folders(&settings, &self.scanner.anchors().home);
-        let (effective_mode, foreign_sync) = self.effective_mode(game);
+        let (effective_mode, foreign_sync) = self.reported_mode(game);
         let emulator = self.scanner.emulator_place(game);
         let (emulator_name, emulator_problem) = match emulator {
             Some(Ok(place)) => (Some(place.emulator.to_string()), None),

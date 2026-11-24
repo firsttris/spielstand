@@ -13,6 +13,7 @@ pub mod emulators;
 pub mod engine;
 pub mod foreign;
 pub mod inspect;
+pub mod places;
 pub mod prefixes;
 pub mod report;
 pub mod running;
