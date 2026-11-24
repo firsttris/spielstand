@@ -2,7 +2,7 @@
 
 # The web UI, built once on the build machine's platform.
 # Bun of `packageManager` in web/package.json (Renovate moves both together)
-FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-slim AS web
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.5-slim AS web
 WORKDIR /src/web
 COPY web/package.json web/bun.lock web/bunfig.toml ./
 RUN bun install --frozen-lockfile
