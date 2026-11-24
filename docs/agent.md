@@ -19,7 +19,8 @@ It stays in the background: the service runs at low CPU and disk priority, and t
 uses two threads that only get CPU time nothing else wants, so a game or the desktop never waits
 for it. That scan looks through the whole manifest and takes minutes; it runs at most every 6
 hours, also across restarts and updates, and when the game folders, custom games or prefix choices
-change in the web UI. The agent connects
+change in the web UI. Reports and the save watcher go by the places the last look at a game's saves
+found, so they don't read the saves again. The agent connects
 first, so the web UI shows it online with its version right away, also during that scan.
 
 ## Where it looks for saves

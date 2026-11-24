@@ -296,3 +296,30 @@ fn proposal(extend: bool) -> CustomGame {
         ..Default::default()
     }
 }
+
+#[tokio::test]
+async fn a_report_goes_by_the_places_known_and_does_not_look_at_the_disk() {
+    let s = server().await;
+    let looked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = looked.clone();
+    let deck = pc_with(&s, "deck", |home| {
+        let scanner = FakeScanner {
+            anchors: Anchors {
+                home: home.to_path_buf(),
+                roots: vec![],
+            },
+            games: [(GAME.to_string(), vec![home.join(".local/share/EldenRing")])].into(),
+            looked: counter,
+            ..Default::default()
+        };
+        (scanner, Sources::default())
+    })
+    .await;
+    deck.write_save("v1");
+    let looks = || looked.load(std::sync::atomic::Ordering::SeqCst);
+
+    assert!(deck.agent.game_report(GAME).location.is_some());
+    assert_eq!(looks(), 0);
+    deck.agent.effective_mode(GAME);
+    assert_eq!(looks(), 1, "what a sync decides by is looked for");
+}

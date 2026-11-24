@@ -136,8 +136,16 @@ impl Agent {
     /// backs them up, so two programs never write the same file; a custom game this device
     /// proposed is only backed up until it is taken over in the web UI.
     pub fn effective_mode(&self, game: &str) -> (SaveMode, Option<ForeignSync>) {
-        let files = self.scanner.save_files(game);
-        let foreign = foreign::check(&files, self.sources.stellwerk_installed());
+        self.mode_with(game, &self.scanner.save_files(game))
+    }
+
+    /// The mode in effect for reports, which run often: judged by the places known.
+    pub fn reported_mode(&self, game: &str) -> (SaveMode, Option<ForeignSync>) {
+        self.mode_with(game, &self.scanner.save_places(game))
+    }
+
+    fn mode_with(&self, game: &str, files: &[PathBuf]) -> (SaveMode, Option<ForeignSync>) {
+        let foreign = foreign::check(files, self.sources.stellwerk_installed());
         let proposed = settings::is_proposed(&self.settings.read().unwrap(), game);
         let mode = match (self.configured_mode(game), &foreign) {
             (SaveMode::Sync, Some(f)) if !f.excluded => SaveMode::Backup,

@@ -50,8 +50,11 @@ pub fn is_staging(path: &Path) -> bool {
 /// prefix holds saves, saves in other prefixes are not the game's: an old prefix it moved out
 /// of, or another install. They are neither backed up as the game's state nor touched.
 fn save_files(scanner: &dyn Scanner, game: &str) -> Vec<PathBuf> {
+    only_saves(scanner, game, scanner.save_files(game))
+}
+
+fn only_saves(scanner: &dyn Scanner, game: &str, mut files: Vec<PathBuf>) -> Vec<PathBuf> {
     let home = scanner.anchors().home;
-    let mut files = scanner.save_files(game);
     files.retain(|f| {
         !is_staging(f)
             && !custom::is_protected_file(f, &home)
@@ -109,7 +112,7 @@ fn portable_of(path: &Path, place: Place<'_>, anchors: &Anchors) -> String {
 }
 
 pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
-    let Found { sources, prefix } = find(scanner, game);
+    let Found { sources, prefix } = found(scanner, game, save_files(scanner, game));
     let files = pack::describe(&sources)?;
     let content_hash = (!files.is_empty()).then(|| pack::content_hash(&files));
     Ok(DiskState {
@@ -128,12 +131,20 @@ pub struct Found {
 }
 
 /// Where the saves of `game` are: each file once, with its portable path. For what needs only
-/// the places (the folders to watch, the reports), which run often: `read` hashes every file.
+/// the places (the folders to watch, the reports), which run often: `read` hashes every file,
+/// and so does Ludusavi whenever it looks at the disk.
 pub fn find(scanner: &dyn Scanner, game: &str) -> Found {
+    found(
+        scanner,
+        game,
+        only_saves(scanner, game, scanner.save_places(game)),
+    )
+}
+
+fn found(scanner: &dyn Scanner, game: &str, files: Vec<PathBuf>) -> Found {
     let anchors = scanner.anchors();
-    let found = save_files(scanner, game);
     let save_dir = scanner.emulator_place(game).and_then(Result::ok).map(|p| p.dir);
-    let prefix = save_dir.clone().or_else(|| main_prefix(&found));
+    let prefix = save_dir.clone().or_else(|| main_prefix(&files));
     let place = match (&save_dir, &prefix) {
         (Some(dir), _) => Place::SaveDir(dir),
         (None, Some(prefix)) => Place::Prefix(prefix),
@@ -141,7 +152,7 @@ pub fn find(scanner: &dyn Scanner, game: &str) -> Found {
     };
     let mut seen = BTreeSet::new();
     let mut portables = BTreeSet::new();
-    let sources: Vec<Source> = found
+    let sources: Vec<Source> = files
         .into_iter()
         .filter(|path| seen.insert(real_path(path)))
         .map(|path| Source {

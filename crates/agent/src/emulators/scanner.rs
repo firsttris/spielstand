@@ -57,6 +57,13 @@ impl Scanner for WithEmulators {
         }
     }
 
+    fn save_places(&self, game: &str) -> Vec<PathBuf> {
+        match title_id(game) {
+            Some(_) => self.save_files(game),
+            None => self.inner.save_places(game),
+        }
+    }
+
     fn games_with_saves(&self) -> Vec<String> {
         let mut all = self.inner.games_with_saves();
         all.extend(games(&self.installs()));
