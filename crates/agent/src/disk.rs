@@ -24,6 +24,7 @@ use spielstand_protocol::{FileEntry, Trigger, VersionMeta};
 use crate::{
     config::Dirs,
     engine::Scanner,
+    hashes::Hashes,
     prefixes,
     store::{Base, Store},
 };
@@ -113,7 +114,22 @@ fn portable_of(path: &Path, place: Place<'_>, anchors: &Anchors) -> String {
 
 pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
     let Found { sources, prefix } = found(scanner, game, save_files(scanner, game));
-    let files = pack::describe(&sources)?;
+    state(sources, prefix, pack::describe)
+}
+
+/// [`read`], without reading again what has not changed since: for comparing the disk with a known
+/// version. Not for what gets packed or was just written.
+pub fn read_changed(scanner: &dyn Scanner, game: &str, hashes: &Hashes) -> anyhow::Result<DiskState> {
+    let Found { sources, prefix } = found(scanner, game, save_files(scanner, game));
+    state(sources, prefix, |s| hashes.describe(s))
+}
+
+fn state(
+    sources: Vec<Source>,
+    prefix: Option<PathBuf>,
+    describe: impl Fn(&[Source]) -> std::io::Result<Vec<FileEntry>>,
+) -> anyhow::Result<DiskState> {
+    let files = describe(&sources)?;
     let content_hash = (!files.is_empty()).then(|| pack::content_hash(&files));
     Ok(DiskState {
         sources,
@@ -131,8 +147,7 @@ pub struct Found {
 }
 
 /// Where the saves of `game` are: each file once, with its portable path. For what needs only
-/// the places (the folders to watch, the reports), which run often: `read` hashes every file,
-/// and so does Ludusavi whenever it looks at the disk.
+/// the places (the folders to watch, the reports), which run often.
 pub fn find(scanner: &dyn Scanner, game: &str) -> Found {
     found(
         scanner,

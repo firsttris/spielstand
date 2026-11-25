@@ -12,7 +12,10 @@ pub mod disk;
 pub mod emulators;
 pub mod engine;
 pub mod foreign;
+pub mod hashes;
 pub mod inspect;
+pub mod lookup;
+pub mod pace;
 pub mod places;
 pub mod prefixes;
 pub mod report;
@@ -24,6 +27,7 @@ pub mod sync;
 pub mod text;
 pub mod update;
 pub mod watch;
+pub mod wine_index;
 
 use std::sync::Arc;
 

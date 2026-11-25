@@ -17,7 +17,9 @@ use crate::{
     config::{AgentConfig, Dirs},
     disk,
     engine::{Scanner, normalize_title},
-    foreign, prefixes,
+    foreign,
+    hashes::Hashes,
+    prefixes,
     settings::{self, Sources},
     store::Store,
     sync::Ui,
@@ -38,6 +40,8 @@ pub struct Agent {
     /// Poked when saves appeared in a new place (a game's first state, a load): the file
     /// watcher sets itself up again.
     pub places_changed: Arc<tokio::sync::Notify>,
+    /// The hashes of save files that did not change, for the catch-up.
+    pub(crate) hashes: Arc<Hashes>,
     /// One lock per game, see [`Agent::lock_game`].
     games_in_work: Arc<Mutex<BTreeMap<String, Arc<tokio::sync::Mutex<()>>>>>,
 }
@@ -70,6 +74,7 @@ impl Agent {
             sources,
             problems: Arc::default(),
             places_changed: Arc::default(),
+            hashes: Arc::default(),
             games_in_work: Arc::default(),
         };
         agent.configure_scanner();

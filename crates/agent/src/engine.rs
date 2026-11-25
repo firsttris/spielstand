@@ -14,15 +14,18 @@ use ludusavi::{
         ResourceFile,
         cache::Cache,
         config::{self, Config, Integration, Root},
-        manifest::{Manifest, Store},
+        manifest::{Game, Manifest, Store},
     },
-    scan::{Launchers, SteamShortcuts, TitleFinder, scan_game_for_backup},
+    scan::{Launchers, SteamShortcuts, TitleFinder},
 };
-use rayon::prelude::*;
 use spielstand_core::portable::Anchors;
 use spielstand_protocol::CustomGame;
 
-use crate::places::Places;
+use crate::{
+    lookup::{Lookup, Wine, is_bare_prefix},
+    pace::Pace,
+    places::Places,
+};
 
 pub trait Scanner: Send + Sync {
     fn anchors(&self) -> Anchors;
@@ -128,7 +131,7 @@ pub struct Ludusavi {
     known: RwLock<Arc<Known>>,
     app_dir: StrictPath,
     steam_shortcuts: SteamShortcuts,
-    launchers: Mutex<Option<Launchers>>,
+    launchers: Mutex<Option<Arc<Launchers>>>,
     places: Places,
     steam_ids: HashMap<u32, String>,
     wine_prefixes: RwLock<Vec<PathBuf>>,
@@ -139,12 +142,13 @@ pub struct Ludusavi {
     pool: Option<rayon::ThreadPool>,
 }
 
-/// Threads the service looks through the whole manifest with.
-const BACKGROUND_THREADS: usize = 2;
+/// How much of one core the service looks through the whole manifest with, whatever else runs.
+const BACKGROUND_PERCENT: u32 = 10;
 
-/// The calling thread only gets CPU time nothing else wants (Linux `SCHED_IDLE`): a game or the
-/// desktop never wait for the scan. Only the scan threads; the rest of the agent (live
-/// connection, backing up after a game) keeps the service's priority.
+/// The calling thread only gets CPU time nothing else wants (Linux `SCHED_IDLE`). A game still
+/// stuttered during a scan with that alone, so the scan is paced as well (see `pace`). Only the
+/// scan thread; the rest of the agent (live connection, backing up after a game) keeps the
+/// service's priority.
 fn only_when_idle() {
     #[cfg(target_os = "linux")]
     {
@@ -211,12 +215,13 @@ impl Ludusavi {
     }
 
     /// For the service: looking through the whole manifest (at the start, after new settings
-    /// and every 6 hours, while the PC is in use) takes a few threads, not every core. Ludusavi
-    /// hashes every save file it finds.
+    /// and every 6 hours, while the PC is in use) takes one thread and a small share of a core.
     pub fn in_background(mut self) -> anyhow::Result<Self> {
+        // Ludusavi spreads what it does over rayon's global pool, which has every core.
+        let _ = rayon::ThreadPoolBuilder::new().num_threads(1).build_global();
         self.pool = Some(
             rayon::ThreadPoolBuilder::new()
-                .num_threads(BACKGROUND_THREADS)
+                .num_threads(1)
                 .thread_name(|i| format!("scan-{i}"))
                 .start_handler(|_| only_when_idle())
                 .build()?,
@@ -233,17 +238,30 @@ impl Ludusavi {
         roots
     }
 
+    fn launcher_roots(&self) -> Vec<Root> {
+        let mut roots = self.roots();
+        roots.retain(|root| !is_bare_prefix(root));
+        roots
+    }
+
     fn known(&self) -> Arc<Known> {
         self.known.read().unwrap().clone()
     }
 
-    fn launchers(&self) -> Launchers {
+    fn launchers(&self) -> Arc<Launchers> {
         let mut cached = self.launchers.lock().unwrap();
         cached
             .get_or_insert_with(|| {
                 let known = self.known();
                 let games: Vec<String> = known.manifest.0.keys().cloned().collect();
-                Launchers::scan(&self.roots(), &known.manifest, &games, &known.title_finder, None)
+                let roots = self.launcher_roots();
+                Arc::new(Launchers::scan(
+                    &roots,
+                    &known.manifest,
+                    &games,
+                    &known.title_finder,
+                    None,
+                ))
             })
             .clone()
     }
@@ -254,37 +272,18 @@ impl Ludusavi {
         self.places.forget();
     }
 
-    fn scan(&self, game: &str, launchers: &Launchers) -> Vec<PathBuf> {
-        let known = self.known();
-        let Some(entry) = known.manifest.0.get(game) else {
-            return vec![];
-        };
+    /// Runs `with` on a lookup of the disk as it is now, for `games`.
+    fn look<T>(&self, games: &[&Game], with: impl FnOnce(&Lookup<'_>) -> T) -> T {
         let roots = self.roots();
-        let info = scan_game_for_backup(
-            entry,
-            game,
-            &roots,
-            &self.app_dir,
-            launchers,
-            &self.config.backup.filter,
-            None,
-            &self.config.backup.toggled_paths,
-            &self.config.backup.toggled_registry,
-            None,
-            &self.config.redirects,
-            false,
-            &self.steam_shortcuts,
-            false,
-        );
-        let mut files: Vec<PathBuf> = info
-            .found_files
-            .iter()
-            .filter(|(_, f)| !f.ignored && f.container.is_none())
-            .filter_map(|(path, _)| path.as_std_path_buf().ok())
-            .collect();
-        files.sort();
-        self.places.remember(game, &files, Instant::now());
-        files
+        with(&Lookup {
+            roots: &roots,
+            app_dir: &self.app_dir,
+            launchers: &self.launchers(),
+            filter: &self.config.backup.filter,
+            ignored: &self.config.backup.toggled_paths,
+            steam_shortcuts: &self.steam_shortcuts,
+            wine: &Wine::of(&roots, games.iter().copied()),
+        })
     }
 }
 
@@ -310,7 +309,13 @@ impl Scanner for Ludusavi {
     }
 
     fn save_files(&self, game: &str) -> Vec<PathBuf> {
-        self.scan(game, &self.launchers())
+        let known = self.known();
+        let Some(entry) = known.manifest.0.get(game) else {
+            return vec![];
+        };
+        let files = self.look(&[entry], |lookup| lookup.files(game, entry));
+        self.places.remember(game, &files, Instant::now());
+        files
     }
 
     fn save_places(&self, game: &str) -> Vec<PathBuf> {
@@ -321,16 +326,27 @@ impl Scanner for Ludusavi {
 
     fn games_with_saves(&self) -> Vec<String> {
         let all = || {
-            let launchers = self.launchers();
+            let mut pace = self.pool.as_ref().map(|_| Pace::percent(BACKGROUND_PERCENT));
             let known = self.known();
-            let names: Vec<&String> = known.manifest.0.keys().collect();
-            let mut found: Vec<String> = names
-                .par_iter()
-                .filter(|name| !self.scan(name, &launchers).is_empty())
-                .map(|n| n.to_string())
-                .collect();
-            found.sort();
-            found
+            let games: Vec<&Game> = known.manifest.0.values().collect();
+            self.look(&games, |lookup| {
+                let mut found: Vec<String> = vec![];
+                for (name, game) in &known.manifest.0 {
+                    let mut any = false;
+                    lookup.visit(name, game, |_| {
+                        any = true;
+                        std::ops::ControlFlow::Break(())
+                    });
+                    if any {
+                        found.push(name.clone());
+                    }
+                    if let Some(pace) = &mut pace {
+                        pace.breathe();
+                    }
+                }
+                found.sort();
+                found
+            })
         };
         match &self.pool {
             Some(pool) => pool.install(all),
@@ -348,7 +364,7 @@ impl Scanner for Ludusavi {
 
     fn install_dirs(&self) -> Vec<(String, PathBuf)> {
         let launchers = self.launchers();
-        let roots = self.roots();
+        let roots = self.launcher_roots();
         let mut out = BTreeMap::new();
         for name in self.known().manifest.0.keys() {
             for root in &roots {

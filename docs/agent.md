@@ -15,13 +15,15 @@ versions, loads new ones from the server and asks when two PCs disagree.
   scans for newly installed games.
 - **Offline** it keeps working: versions wait in the outbox and go up when the server is back.
 
-It stays in the background: the service runs at low CPU and disk priority, and the scan for games
-uses two threads that only get CPU time nothing else wants, so a game or the desktop never waits
-for it. That scan looks through the whole manifest and takes minutes; it runs at most every 6
-hours, also across restarts and updates, and when the game folders, custom games or prefix choices
-change in the web UI. Reports and the save watcher go by the places the last look at a game's saves
-found, so they don't read the saves again. The agent connects
-first, so the web UI shows it online with its version right away, also during that scan.
+It stays in the background: the service runs at low CPU and disk priority, and the service file the
+install script writes holds it to one core. An update from the web UI keeps the service file; running
+the install script again writes a new one. The scan for games takes a tenth of a core, however long that takes, and tries a game's
+paths only in the Wine prefixes where the first folder they name exists. It runs at most every 6
+hours, also across restarts and updates, not at the 6 hours while a game it knows runs, and when the
+game folders, custom games or prefix choices change in the web UI. Catching up rests between the
+games and reads only the save files that changed since it last read them (and each once a day).
+Reports and the save watcher go by the places the last look at a game's saves found. The agent
+connects first, so the web UI shows it online with its version right away, also during that scan.
 
 ## Where it looks for saves
 

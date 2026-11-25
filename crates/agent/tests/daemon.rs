@@ -350,3 +350,27 @@ async fn a_restart_soon_after_a_full_scan_does_not_scan_again() {
     assert_eq!(full_scans(&scans), 0);
     daemon.abort();
 }
+
+#[tokio::test]
+async fn the_scan_every_6_hours_waits_while_a_game_runs() {
+    let s = server().await;
+    let (desktop, scans) = counting(&s).await;
+    std::fs::create_dir_all(&desktop.agent.dirs.data).unwrap();
+    std::fs::write(desktop.agent.dirs.last_full_scan(), b"").unwrap();
+    let playing = spielstand_agent::running::lock(&desktop.agent.dirs, "Some Game").unwrap();
+    let agent = desktop.agent.clone();
+    let timings = Timings {
+        catch_up: Duration::from_millis(100),
+        full_scan: Duration::from_millis(300),
+        ..fast()
+    };
+    // Not due at the start, due soon after.
+    let daemon = tokio::spawn(async move {
+        let _ = run_with(agent, timings).await;
+    });
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert_eq!(full_scans(&scans), 0, "a game runs");
+    drop(playing);
+    eventually("the scan after the game", || async { full_scans(&scans) >= 1 }).await;
+    daemon.abort();
+}
