@@ -3796,7 +3796,7 @@ dependencies = [
 
 [[package]]
 name = "spielstand-agent"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3836,7 +3836,7 @@ dependencies = [
 
 [[package]]
 name = "spielstand-core"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "chrono",
  "hex",
@@ -3853,7 +3853,7 @@ dependencies = [
 
 [[package]]
 name = "spielstand-protocol"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "chrono",
  "serde",
@@ -3863,7 +3863,7 @@ dependencies = [
 
 [[package]]
 name = "spielstand-server"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "argon2",
