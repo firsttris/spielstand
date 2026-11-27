@@ -133,6 +133,7 @@ pub async fn upload(
 ) -> ApiResult<UploadOutcome> {
     version.meta.device = device.to_string();
     check_meta(&version.meta, &received.sha256, received.size)?;
+    let received = crate::upload_validation::validate(state, &version.meta, received).await?;
     let game = version.meta.game.clone();
     let id = version.meta.id.clone();
 

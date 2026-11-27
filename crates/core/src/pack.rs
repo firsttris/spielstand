@@ -11,7 +11,9 @@ use sha2::{Digest, Sha256};
 use spielstand_protocol::FileEntry;
 
 mod capture;
+mod validate;
 pub use capture::{Fingerprint, check_sources, fingerprints};
+pub use validate::validate;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PackError {
@@ -29,6 +31,8 @@ pub enum PackError {
     Missing(String),
     #[error("source changed while taking a snapshot: {0}")]
     SourceChanged(String),
+    #[error("invalid archive: {0}")]
+    InvalidArchive(String),
 }
 
 /// A file to pack: where it lives now and its portable name.

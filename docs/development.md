@@ -39,6 +39,9 @@ docker/       the image: server, agent binaries, rclone
   folder, `scanner.rs` adds them to Ludusavi's scanner. Saves are stored as `<switch>/…`.
 - **Uploads** (`server/src/versions.rs`) move the current state with
   `UPDATE games SET head = ? WHERE id = ? AND head IS ?`; anything else becomes a branch.
+  Before publication, `server/src/upload_validation.rs` checks every upload, including repeats,
+  against its manifest. Validation streams file contents, caps decoder history at 64 MiB and
+  runs at most two checks at once. Stored versions are not revalidated.
 - **Packing** (`core/src/pack/capture.rs`) hashes and counts the exact bytes passed to tar.
   Source identity, size and kernel change markers are checked before and after capture,
   including files read earlier in the same archive. A detected change rejects the capture and

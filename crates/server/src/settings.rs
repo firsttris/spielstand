@@ -10,6 +10,10 @@ pub struct Settings {
     #[arg(long, env = "SPIELSTAND_LISTEN", default_value = "0.0.0.0:8467")]
     pub listen: String,
 
+    /// Maximum decompressed upload size in bytes, including tar headers and padding.
+    #[arg(long, env = "SPIELSTAND_MAX_UNPACKED", default_value_t = 16 * 1024 * 1024 * 1024)]
+    pub max_unpacked: u64,
+
     /// The address agents reach the server at, used in the install command.
     #[arg(long, env = "SPIELSTAND_PUBLIC_URL")]
     pub public_url: Option<String>,
@@ -47,6 +51,7 @@ impl Settings {
         Self {
             data_dir,
             listen: "127.0.0.1:0".into(),
+            max_unpacked: 16 * 1024 * 1024 * 1024,
             public_url: None,
             mirror: None,
             rclone: "rclone".into(),
