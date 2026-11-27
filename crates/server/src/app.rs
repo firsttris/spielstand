@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::{Router, extract::DefaultBodyLimit};
 use spielstand_protocol::MirrorStatus;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 use tower_http::trace::TraceLayer;
 
 use crate::{db::Db, hub::Hub, routes, settings::Settings, switch_titles::SwitchTitles, throttle::Throttle};
@@ -21,6 +21,7 @@ pub struct AppState {
     pub logins: Throttle,
     pub pairings: Throttle,
     pub switch_titles: SwitchTitles,
+    pub(crate) upload_validation: Arc<Semaphore>,
 }
 
 impl AppState {
@@ -44,6 +45,7 @@ impl AppState {
             logins: Throttle::new(10, std::time::Duration::from_secs(60)),
             pairings: Throttle::new(20, std::time::Duration::from_secs(60)),
             switch_titles: SwitchTitles::default(),
+            upload_validation: Arc::new(Semaphore::new(2)),
         })
     }
 }

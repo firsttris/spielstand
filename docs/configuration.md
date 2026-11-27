@@ -7,6 +7,7 @@ Every setting is an environment variable (or the matching command-line flag, e.g
 | Variable | Default | |
 |---|---|---|
 | `SPIELSTAND_DATA` | `/data` | database, versions, trash |
+| `SPIELSTAND_MAX_UNPACKED` | `17179869184` (16 GiB) | maximum decompressed upload size in bytes, including tar headers and padding |
 | `SPIELSTAND_LISTEN` | `0.0.0.0:8467` | address and port |
 | `SPIELSTAND_PUBLIC_URL` | from the request | the address PCs use; goes into the install command |
 | `SPIELSTAND_MIRROR` | – | offsite copy: an rclone remote (`gdrive:Spielstand`) or a folder |
@@ -84,3 +85,7 @@ Everything else is set in the web UI and sent to the agent: the default mode and
 
 The server accepts 10 login attempts and 20 pairing attempts a minute; further ones get
 `429 Too Many Requests` until the minute is over.
+
+Uploads are limited to 4 GiB compressed; `SPIELSTAND_MAX_UNPACKED` limits their decompressed size.
+The server checks each package against its manifest and rejects invalid uploads with HTTP 400
+before publication.

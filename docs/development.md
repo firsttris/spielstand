@@ -11,7 +11,7 @@ cd web && bun run dev                           # UI with hot reload on :5173, p
 
 ## Architecture
 
-```
+```text
 crates/
   protocol/   types shared by server, agent and web UI (TypeScript through ts-rs)
   core/       pure logic: the sync decision, packing, portable paths, retention
@@ -39,6 +39,14 @@ docker/       the image: server, agent binaries, rclone
   folder, `scanner.rs` adds them to Ludusavi's scanner. Saves are stored as `<switch>/…`.
 - **Uploads** (`server/src/versions.rs`) move the current state with
   `UPDATE games SET head = ? WHERE id = ? AND head IS ?`; anything else becomes a branch.
+  Before publication, `server/src/upload_validation.rs` checks every upload, including repeats,
+  against its manifest. Validation streams file contents, caps decoder history at 64 MiB and
+  runs at most two checks at once. Stored versions are not revalidated.
+- **Packing** (`core/src/pack/capture.rs`) hashes and counts the exact bytes passed to tar.
+  Source identity, size and kernel change markers are checked before and after capture,
+  including files read earlier in the same archive. A detected change rejects the capture and
+  removes its temporary output. Failed captures do not advance the agent's base or enter its
+  upload queue. See the [limits of backups while a game runs](agent.md#what-it-does-on-its-own).
 - **Writing saves** (`agent/src/disk.rs`) snapshots first, stages, verifies, renames and rolls back.
 - **Custom games** (`core/src/custom.rs` checks the paths, `server/src/custom_games.rs` stores them):
   a device's proposal goes only into that device's `AgentSettings` and is backed up only there until

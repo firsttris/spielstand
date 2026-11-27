@@ -22,6 +22,7 @@ pub mod report;
 pub mod running;
 pub mod settings;
 pub mod skill;
+mod snapshot;
 pub mod store;
 pub mod sync;
 pub mod text;

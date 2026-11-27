@@ -21,6 +21,7 @@ pub mod routes;
 pub mod settings;
 pub mod switch_titles;
 pub mod throttle;
+mod upload_validation;
 pub mod versions;
 
 pub use app::{AppState, router};

@@ -366,6 +366,7 @@ async fn watch_saves(agent: &Agent, timings: &Timings) {
                     let due = debounce.due(Instant::now());
                     for game in &due {
                         if let Err(e) = agent.observe(game).await {
+                            debounce.retry_if_unstable(game, &e, Instant::now());
                             tracing::warn!("{game}: {e:#}");
                         }
                     }
