@@ -25,6 +25,15 @@ games and reads only the save files that changed since it last read them (and ea
 Reports and the save watcher go by the places the last look at a game's saves found. The agent
 connects first, so the web UI shows it online with its version right away, also during that scan.
 
+A backup checks whether save files changed, appeared or disappeared while it ran and retries
+up to three times. If all attempts fail, background backups wait for another quiet period and
+retry, even without another file event.
+Manual and session backups report an error if all attempts fail; loading a version stops if its
+required safety backup fails. The launch command lets the game start with local saves if
+synchronization fails.
+
+Backing up a running game cannot guarantee consistency across its save files.
+
 ## Where it looks for saves
 
 The agent uses [Ludusavi](ludusavi.md)'s scanner and its manifest of over 10,000 games. Besides

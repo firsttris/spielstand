@@ -43,7 +43,7 @@ docker/       the image: server, agent binaries, rclone
   Source identity, size and kernel change markers are checked before and after capture,
   including files read earlier in the same archive. A detected change rejects the capture and
   removes its temporary output. Failed captures do not advance the agent's base or enter its
-  upload queue.
+  upload queue. See the [limits of backups while a game runs](agent.md#what-it-does-on-its-own).
 - **Writing saves** (`agent/src/disk.rs`) snapshots first, stages, verifies, renames and rolls back.
 - **Custom games** (`core/src/custom.rs` checks the paths, `server/src/custom_games.rs` stores them):
   a device's proposal goes only into that device's `AgentSettings` and is backed up only there until

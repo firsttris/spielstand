@@ -19,15 +19,11 @@ use spielstand_core::{
     pack::{self, Source},
     portable::{self, Anchors},
 };
-use spielstand_protocol::{FileEntry, Trigger, VersionMeta};
+use spielstand_protocol::{FileEntry, VersionMeta};
 
-use crate::{
-    config::Dirs,
-    engine::Scanner,
-    hashes::Hashes,
-    prefixes,
-    store::{Base, Store},
-};
+pub use crate::snapshot::{UnstableSnapshot, snapshot};
+
+use crate::{config::Dirs, engine::Scanner, hashes::Hashes, prefixes};
 
 pub struct DiskState {
     pub sources: Vec<Source>,
@@ -113,14 +109,14 @@ fn portable_of(path: &Path, place: Place<'_>, anchors: &Anchors) -> String {
 }
 
 pub fn read(scanner: &dyn Scanner, game: &str) -> anyhow::Result<DiskState> {
-    let Found { sources, prefix } = found(scanner, game, save_files(scanner, game));
+    let Found { sources, prefix } = fresh(scanner, game);
     state(sources, prefix, pack::describe)
 }
 
 /// [`read`], without reading again what has not changed since: for comparing the disk with a known
 /// version. Not for what gets packed or was just written.
 pub fn read_changed(scanner: &dyn Scanner, game: &str, hashes: &Hashes) -> anyhow::Result<DiskState> {
-    let Found { sources, prefix } = found(scanner, game, save_files(scanner, game));
+    let Found { sources, prefix } = fresh(scanner, game);
     state(sources, prefix, |s| hashes.describe(s))
 }
 
@@ -156,6 +152,11 @@ pub fn find(scanner: &dyn Scanner, game: &str) -> Found {
     )
 }
 
+/// Fresh discovery for captures; reporting's cached save places are insufficient here.
+pub(crate) fn fresh(scanner: &dyn Scanner, game: &str) -> Found {
+    found(scanner, game, save_files(scanner, game))
+}
+
 fn found(scanner: &dyn Scanner, game: &str, files: Vec<PathBuf>) -> Found {
     let anchors = scanner.anchors();
     let save_dir = scanner.emulator_place(game).and_then(Result::ok).map(|p| p.dir);
@@ -178,68 +179,6 @@ fn found(scanner: &dyn Scanner, game: &str, files: Vec<PathBuf>) -> Found {
         .filter(|s| portables.insert(s.portable.clone()))
         .collect();
     Found { sources, prefix }
-}
-
-/// Packs the disk state of `game` into the outbox and makes it the base. Returns `None` when
-/// the disk has no saves or already equals the base (that state is stored already).
-pub async fn snapshot(
-    dirs: &Dirs,
-    store: &Store,
-    scanner: &dyn Scanner,
-    device: &str,
-    game: &str,
-    trigger: Trigger,
-    session_seconds: Option<u64>,
-) -> anyhow::Result<Option<VersionMeta>> {
-    let disk = read(scanner, game)?;
-    let Some(hash) = disk.content_hash.clone() else {
-        return Ok(None);
-    };
-    let base = store.base(game).await?;
-    if base.as_ref().is_some_and(|b| b.content_hash == hash) {
-        return Ok(None);
-    }
-    let now = Utc::now();
-    let id = spielstand_core::new_version_id(now);
-    tokio::fs::create_dir_all(dirs.outbox()).await?;
-    let blob = dirs.outbox().join(format!("{id}.tar.zst"));
-    // A Switch title's save folder means nothing on another device; a Wine prefix may.
-    let prefix_hint = disk
-        .prefix
-        .as_deref()
-        .filter(|_| crate::emulators::title_id(game).is_none())
-        .map(|p| portable::to_portable(p, &scanner.anchors()));
-    let title = scanner.title(game);
-    let packed = {
-        let blob = blob.clone();
-        tokio::task::spawn_blocking(move || pack::pack(&disk.sources, &blob)).await??
-    };
-    let meta = VersionMeta {
-        id: id.clone(),
-        game: game.to_string(),
-        parent: base.map(|b| b.version),
-        device: device.to_string(),
-        created_at: now,
-        trigger,
-        session_seconds,
-        content_hash: packed.content_hash.clone(),
-        blob_sha256: packed.blob_sha256,
-        blob_size: packed.blob_size,
-        files: packed.files,
-        prefix: prefix_hint,
-        title,
-    };
-    store.enqueue(&meta, &blob).await?;
-    store
-        .set_base(
-            game,
-            &Base {
-                version: id,
-                content_hash: packed.content_hash,
-            },
-        )
-        .await?;
-    Ok(Some(meta))
 }
 
 struct Planned {

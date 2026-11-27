@@ -45,6 +45,13 @@ impl Debounce {
         self.last.insert(game.to_string(), now);
     }
 
+    /// Retry a capture that exhausted its attempts even if no further event arrives.
+    pub(crate) fn retry_if_unstable(&mut self, game: &str, error: &anyhow::Error, now: Instant) {
+        if error.downcast_ref::<crate::disk::UnstableSnapshot>().is_some() {
+            self.touch(game, now);
+        }
+    }
+
     /// The games that are due now; they are forgotten until they change again.
     pub fn due(&mut self, now: Instant) -> Vec<String> {
         let due: Vec<String> = self
@@ -130,6 +137,21 @@ mod tests {
         assert_eq!(d.due(start + Duration::from_secs(19)), vec!["A".to_string()]);
         assert!(d.due(start + Duration::from_secs(60)).is_empty());
         assert_eq!(d.next_in(start), None);
+    }
+
+    #[test]
+    fn an_unstable_capture_is_due_again_without_another_event() {
+        let start = Instant::now();
+        let quiet = Duration::from_secs(10);
+        let mut d = Debounce::new(quiet);
+        d.touch("A", start);
+        assert_eq!(d.due(start + quiet), vec!["A"]);
+        let error = anyhow::Error::new(crate::disk::UnstableSnapshot { game: "A".into() });
+        d.retry_if_unstable("A", &error.context("backup failed"), start + quiet);
+        assert!(d.due(start + quiet + Duration::from_secs(9)).is_empty());
+        assert_eq!(d.due(start + quiet * 2), vec!["A"]);
+        d.retry_if_unstable("A", &anyhow::anyhow!("disk full"), start + quiet * 2);
+        assert!(d.next_in(start + quiet * 2).is_none());
     }
 
     #[tokio::test]
