@@ -3,12 +3,15 @@
 use std::{
     collections::BTreeMap,
     fs::File,
-    io::{self, Read, Write},
+    io::{self, Read},
     path::{Path, PathBuf},
 };
 
 use sha2::{Digest, Sha256};
 use spielstand_protocol::FileEntry;
+
+mod capture;
+pub use capture::{Fingerprint, check_sources, fingerprints};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PackError {
@@ -24,9 +27,12 @@ pub enum PackError {
     },
     #[error("the package misses {0}")]
     Missing(String),
+    #[error("source changed while taking a snapshot: {0}")]
+    SourceChanged(String),
 }
 
 /// A file to pack: where it lives now and its portable name.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Source {
     pub portable: String,
     pub path: PathBuf,
@@ -96,23 +102,7 @@ fn entry_name(portable: &str) -> String {
 }
 
 pub fn pack(sources: &[Source], out: &Path) -> Result<Packed, PackError> {
-    let files = describe(sources)?;
-    let blob = File::create(out)?;
-    let encoder = zstd::Encoder::new(blob, 9)?;
-    let mut builder = tar::Builder::new(encoder);
-    for source in sources {
-        let mut file = File::open(&source.path)?;
-        builder.append_file(entry_name(&source.portable), &mut file)?;
-    }
-    let mut encoder = builder.into_inner()?;
-    encoder.flush()?;
-    encoder.finish()?.sync_all()?;
-    Ok(Packed {
-        content_hash: content_hash(&files),
-        blob_sha256: sha256_file(out)?,
-        blob_size: std::fs::metadata(out)?.len(),
-        files,
-    })
+    capture::pack(sources, out, |_| {})
 }
 
 /// Read every file of a package into memory, checked against the manifest's hashes.

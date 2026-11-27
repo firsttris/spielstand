@@ -13,9 +13,9 @@ sha2.workspace = true
 hex.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+tempfile.workspace = true
 tar = "0.4"
 zstd = "0.14"
 
 [dev-dependencies]
-tempfile.workspace = true
 proptest = "1"
